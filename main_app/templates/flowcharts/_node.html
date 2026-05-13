@@ -1,0 +1,42 @@
+<li>
+  {% if node.branch_label %}<span class="branch-label">{{ node.branch_label }}</span>{% endif %}
+  <a href="{% url 'node-detail' node.id %}"
+     class="flow-node"
+     data-shape="{{ node.shape }}"
+     data-node-id="{{ node.id }}"
+     {% if not readonly %}draggable="true"{% endif %}
+     style="--node-color: {{ node.color_resolved }};">
+    <span class="node-shape-label">{{ node.get_shape_display }}</span>
+    <span class="node-label">{{ node.label }}</span>
+  </a>
+  {% if not readonly %}
+    <div>
+      <button type="button" class="node-add" data-parent-id="{{ node.id }}" aria-label="Add child to {{ node.label }}">
+        <span class="plus">+</span> Add child
+      </button>
+      <form class="add-form" data-parent-id="{{ node.id }}">
+        <input type="text" name="label" placeholder="Label" maxlength="120" required />
+        <select name="shape">
+          <option value="process">Process</option>
+          <option value="decision">Decision</option>
+          <option value="start">Start / End</option>
+          <option value="io">Input / Output</option>
+          <option value="data">Data</option>
+          <option value="note">Note</option>
+        </select>
+        <input type="text" name="branch_label" placeholder="Branch label (e.g. Yes)" maxlength="40" />
+        <div class="add-form-actions">
+          <button type="button" class="btn ghost small add-cancel">Cancel</button>
+          <button type="submit" class="btn primary small">Add</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+  {% if node.children_list %}
+    <ul>
+      {% for child in node.children_list %}
+        {% include 'flowcharts/_node.html' with node=child readonly=readonly %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</li>

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete {{ object.label }} · InFlow{% endblock %}
+
+{% block content %}
+<div class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete this node?</h1>
+  <p class="muted">"{{ object.label }}" and all of its descendants will be removed from "{{ object.flowchart.title }}". This can't be undone.</p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'node-detail' object.id %}" class="btn ghost">Cancel</a>
+    <button type="submit" class="btn danger">Delete forever</button>
+  </form>
+</div>
+{% endblock %}

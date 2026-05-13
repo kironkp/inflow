@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ tag.name }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>
+      <span class="tag-chip" style="background: {{ tag.color }};">{{ tag.name }}</span>
+    </h1>
+    <p class="muted">All your nodes that wear this tag.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'tag-update' tag.id %}" class="btn ghost small">Edit</a>
+    <a href="{% url 'tag-delete' tag.id %}" class="btn ghost danger small">Delete</a>
+  </div>
+</section>
+
+{% if nodes %}
+  <ul class="list-plain">
+    {% for n in nodes %}
+      <li class="move-line">
+        <a href="{% url 'node-detail' n.id %}">{{ n.label }}</a>
+        <span class="muted">· {{ n.get_shape_display }} in <a href="{% url 'flowchart-detail' n.flowchart_id %}">{{ n.flowchart.title }}</a></span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty-state">
+    <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+    <h2>Nothing tagged "{{ tag.name }}" yet</h2>
+    <p>Open any node and add this tag from its detail page.</p>
+  </div>
+{% endif %}
+{% endblock %}

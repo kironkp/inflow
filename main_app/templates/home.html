@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}InFlow — Map your thinking{% endblock %}
+
+{% block content %}
+{% if user.is_authenticated %}
+  <section class="dashboard">
+    <div class="dashboard-greeting">
+      <h1>Welcome back, {{ user.username }}.</h1>
+      <p class="lead">{{ flowchart_count }} flow{{ flowchart_count|pluralize }} across {{ node_count }} node{{ node_count|pluralize }}. Pick up where you left off.</p>
+    </div>
+
+    {% if most_recent %}
+      <section style="margin-bottom: var(--s-6);">
+        <header style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap;">
+          <h2 style="margin:0;">{{ most_recent.title }}</h2>
+          <a href="{% url 'flowchart-detail' most_recent.id %}" class="muted small">Open editor →</a>
+        </header>
+        {% if preview %}
+          <div class="preview-frame">
+            <svg viewBox="{{ preview.view_x }} {{ preview.view_y }} {{ preview.view_w }} {{ preview.view_h }}"
+                 xmlns="http://www.w3.org/2000/svg"
+                 preserveAspectRatio="xMidYMid meet"
+                 class="preview-svg">
+              {% for e in preview.edges %}
+                <path d="{{ e.d }}" fill="none" stroke="#D8DEE6" stroke-width="2"/>
+                {% if e.branch_label %}
+                  <text x="{{ e.mx }}" y="{{ e.my }}" text-anchor="middle"
+                        font-size="14" font-weight="600" fill="#5A6B73"
+                        paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">{{ e.branch_label }}</text>
+                {% endif %}
+              {% endfor %}
+              {% for n in preview.nodes %}
+                <rect x="{{ n.x }}" y="{{ n.y }}" width="{{ n.w }}" height="{{ n.h }}"
+                      rx="6" ry="6" fill="#FFFFFF" stroke="{{ n.color }}" stroke-width="2"/>
+                <text x="{{ n.text_x }}" y="{{ n.shape_text_y }}"
+                      font-size="11" font-weight="700" fill="{{ n.color }}" letter-spacing="1">{{ n.shape_display|upper }}</text>
+                <text x="{{ n.text_x }}" y="{{ n.label_text_y }}"
+                      font-size="15" font-weight="600" fill="#102026">{{ n.label }}</text>
+                {% if n.subtitle %}
+                  <text x="{{ n.text_x }}" y="{{ n.subtitle_text_y }}"
+                        font-size="11" font-style="italic" fill="#5A6B73">{{ n.subtitle }}</text>
+                {% endif %}
+              {% endfor %}
+            </svg>
+          </div>
+        {% else %}
+          <p class="muted">This flow doesn't have any nodes yet. <a href="{% url 'node-create' most_recent.id %}">Add the first one</a>.</p>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if charts %}
+      <section class="combined-section" style="margin-bottom: var(--s-6);">
+        <header style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);margin-bottom:var(--s-4);">
+          <h2 style="margin:0;">All your flows</h2>
+          <a href="{% url 'flowchart-index' %}" class="muted small">See all →</a>
+        </header>
+        <div class="chart-grid">
+          {% for c in charts %}
+            <a href="{% url 'flowchart-detail' c.id %}" class="chart-card">
+              <span class="chart-accent" aria-hidden="true"></span>
+              <h3>{{ c.title }}</h3>
+              {% if c.description %}<p class="chart-desc">{{ c.description }}</p>{% endif %}
+              <p class="chart-meta">{{ c.n_nodes }} node{{ c.n_nodes|pluralize }} · updated {{ c.updated_at|date:"M j" }}</p>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="dashboard-grid">
+      <section class="panel">
+        <h2>Recent changes</h2>
+        {% if recent_changes %}
+          <ul class="list-plain">
+            {% for log in recent_changes %}
+              <li class="move-line">
+                <a href="{% url 'flowchart-detail' log.node.flowchart_id %}">{{ log.node.label }}</a>
+                <span class="muted">· {{ log.action }} in {{ log.node.flowchart.title }}</span>
+                <time>{{ log.changed_at|date:"M j" }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">No edits yet. Once you start moving nodes around, the trail shows up here.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Tip</h2>
+        <p class="muted">
+          Open any flow to enter the <strong>editor</strong>: drag empty space to pan, scroll to zoom, drag a node to move it (with its subtree), and <strong>shift-drag</strong> empty space to box-select a group.
+        </p>
+        <p class="muted">
+          Made a mess? Hit <strong>Auto-layout</strong> in the toolbar to retidy everything.
+        </p>
+      </section>
+    </div>
+
+    <div class="dashboard-cta">
+      <a href="{% url 'flowchart-create' %}" class="btn primary">New flowchart</a>
+      <a href="{% url 'flowchart-index' %}" class="btn secondary">All flows</a>
+    </div>
+  </section>
+{% else %}
+  <section class="hero">
+    <div class="hero-text">
+      <h1>Map your thinking. <br/>Draw it once.</h1>
+      <p class="lead">InFlow turns a tree of nodes into a clean flowchart. No floating boxes to align — just type, branch, and drag to reshape. Decision points, processes, start/end pills, all in their proper shape.</p>
+      <div class="hero-actions">
+        <a href="{% url 'signup' %}" class="btn primary large">Get started</a>
+        <a href="{% url 'login' %}" class="btn ghost large">I have an account</a>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <img src="{% static 'images/hero-illustration.svg' %}" alt="" />
+    </div>
+  </section>
+
+  <section class="features">
+    <h2>Built around how flows actually grow</h2>
+    <div class="feature-grid">
+      <article class="feature">
+        <img src="{% static 'images/feature-tree.svg' %}" alt="" aria-hidden="true" />
+        <h3>Tree-first layout</h3>
+        <p>Auto-layout tidies branches top-down so the flow reads itself. Drag any node to override.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-drag.svg' %}" alt="" aria-hidden="true" />
+        <h3>Subtree drag</h3>
+        <p>Move a node and its children come with. Box-select to group-move related branches.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-shapes.svg' %}" alt="" aria-hidden="true" />
+        <h3>Proper shapes</h3>
+        <p>Diamonds for decisions, pills for start/end, parallelograms for I/O. Speak the language flowcharts already use.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-branch.svg' %}" alt="" aria-hidden="true" />
+        <h3>Labeled branches</h3>
+        <p>"Yes" / "No" sit on the connector itself — no guessing which side of a decision means what.</p>
+      </article>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

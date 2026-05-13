@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete {{ object.name }} · InFlow{% endblock %}
+
+{% block content %}
+<div class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete this tag?</h1>
+  <p class="muted">"{{ object.name }}" will be removed from every node it's on. This can't be undone.</p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'tag-index' %}" class="btn ghost">Cancel</a>
+    <button type="submit" class="btn danger">Delete forever</button>
+  </form>
+</div>
+{% endblock %}

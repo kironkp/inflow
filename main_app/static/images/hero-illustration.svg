@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 400" width="480" height="400">
+  <!-- subtle dotted grid backdrop -->
+  <defs>
+    <pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#D8DEE6"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="480" height="400" fill="url(#dots)" opacity="0.6"/>
+
+  <!-- Connectors first so nodes sit on top -->
+  <g stroke="#5A6B73" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Start -> Decision -->
+    <path d="M240 60 L240 110"/>
+    <path d="M236 105 L240 113 L244 105"/>
+    <!-- Decision Yes -> Process A -->
+    <path d="M170 165 L100 220"/>
+    <path d="M98 213 L100 220 L107 220"/>
+    <!-- Decision No -> Process B -->
+    <path d="M310 165 L380 220"/>
+    <path d="M373 220 L380 220 L378 213"/>
+    <!-- Process A -> End -->
+    <path d="M100 275 L100 320 L220 320 L220 348"/>
+    <path d="M216 343 L220 351 L224 343"/>
+    <!-- Process B -> End -->
+    <path d="M380 275 L380 320 L260 320 L260 348"/>
+    <path d="M256 343 L260 351 L264 343"/>
+  </g>
+
+  <!-- Yes / No branch labels -->
+  <g font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#5A6B73">
+    <rect x="148" y="180" width="32" height="18" rx="9" fill="#F6F8FB" stroke="#D8DEE6"/>
+    <text x="164" y="193" text-anchor="middle">YES</text>
+    <rect x="298" y="180" width="32" height="18" rx="9" fill="#F6F8FB" stroke="#D8DEE6"/>
+    <text x="314" y="193" text-anchor="middle">NO</text>
+  </g>
+
+  <!-- Start node (rounded pill) -->
+  <rect x="190" y="22" width="100" height="38" rx="19" fill="#FFFFFF" stroke="#2A6B45" stroke-width="2.5"/>
+  <text x="240" y="46" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#102026">Start</text>
+
+  <!-- Decision (diamond) -->
+  <path d="M240 110 L320 152 L240 195 L160 152 Z" fill="#FFFFFF" stroke="#B5821A" stroke-width="2.5"/>
+  <text x="240" y="148" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" font-weight="600" fill="#102026">Ready?</text>
+  <text x="240" y="163" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#5A6B73">decision</text>
+
+  <!-- Process A (rect) -->
+  <rect x="40" y="220" width="120" height="58" rx="6" fill="#FFFFFF" stroke="#1B4D5A" stroke-width="2.5"/>
+  <text x="100" y="247" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#102026">Do the thing</text>
+  <text x="100" y="263" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#5A6B73">process</text>
+
+  <!-- Process B (rect, alt) -->
+  <rect x="320" y="220" width="120" height="58" rx="6" fill="#FFFFFF" stroke="#1B4D5A" stroke-width="2.5"/>
+  <text x="380" y="247" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#102026">Wait + retry</text>
+  <text x="380" y="263" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#5A6B73">process</text>
+
+  <!-- End node (rounded pill) -->
+  <rect x="190" y="350" width="100" height="38" rx="19" fill="#FFFFFF" stroke="#2A6B45" stroke-width="2.5"/>
+  <text x="240" y="374" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#102026">Done</text>
+
+  <!-- Tiny floating cursor for charm -->
+  <g transform="translate(395 145)">
+    <path d="M0 0 L0 18 L4 14 L8 22 L11 21 L7 13 L13 12 Z" fill="#2C7DC9" stroke="#102026" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+</svg>

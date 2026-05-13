@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if object %}Edit {{ object.title }}{% else %}New flowchart{% endif %} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{% if object %}Edit {{ object.title }}{% else %}New flowchart{% endif %}</h1>
+    <p class="muted">A flowchart is a container for a tree of nodes — give it a name and you're off.</p>
+  </div>
+</section>
+
+<form method="post" class="big-form" autocomplete="off">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field {% if field.errors %}has-error{% endif %}">
+      <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+      {% if field.errors %}<p class="error">{{ field.errors|join:", " }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  <div class="form-actions">
+    <a href="{% if object %}{% url 'flowchart-detail' object.id %}{% else %}{% url 'flowchart-index' %}{% endif %}" class="btn ghost">Cancel</a>
+    <button type="submit" class="btn primary">{% if object %}Save changes{% else %}Create flowchart{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

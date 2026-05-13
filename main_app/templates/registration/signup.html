@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Sign up · InFlow{% endblock %}
+
+{% block content %}
+<section class="auth-card">
+  <div class="auth-art" aria-hidden="true">
+    <img src="{% static 'images/auth-illustration.svg' %}" alt="" />
+  </div>
+  <div class="auth-form">
+    <h1>Create an account</h1>
+    <p class="muted">Start mapping your first flow in under a minute.</p>
+    <form method="post" autocomplete="on">
+      {% csrf_token %}
+      {% if error %}
+        <div class="form-error" role="alert">{{ error }}</div>
+      {% endif %}
+      {{ form.as_p }}
+      <button type="submit" class="btn primary block">Sign up</button>
+    </form>
+    <p class="auth-alt">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+  </div>
+</section>
+{% endblock %}

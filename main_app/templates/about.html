@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}About · InFlow{% endblock %}
+
+{% block content %}
+<section class="about-hero">
+  <div class="about-text">
+    <h1>About InFlow</h1>
+    <p class="lead">A small flowchart maker for people who think in branches and arrows but hate aligning boxes.</p>
+  </div>
+  <div class="about-art" aria-hidden="true">
+    <img src="{% static 'images/about-illustration.svg' %}" alt="" />
+  </div>
+</section>
+
+<section class="about-body">
+  <article class="prose">
+    <h2>Why I built this</h2>
+    <p>
+      Every other flowchart tool starts with an infinite canvas, a snap-grid, and a fight to keep boxes from drifting. That's the wrong starting point for thinking. A flow has a shape — top to bottom, parent to child, with the occasional branch — and that shape is a tree.
+    </p>
+    <p>
+      InFlow treats your flowchart as a tree of nodes. You add a child, the layout does the math. You drag a node onto another, the connection comes with it. The result reads like a real flowchart because it <em>is</em> one — just one you didn't have to position by hand.
+    </p>
+
+    <h2>How it works</h2>
+    <ul>
+      <li><strong>Flowcharts</strong> are containers. Each one is a separate diagram with its own tree of nodes.</li>
+      <li><strong>Nodes</strong> are shapes — Process, Decision, Start/End, Input/Output, Data, or Note. Each can have a parent (another node) and any number of children.</li>
+      <li><strong>Branch labels</strong> sit on the connector from a parent to a child. Use them for "Yes" / "No" from a decision, or any short label that says what the branch means.</li>
+      <li><strong>Drag</strong> a node onto any other node to reparent it. Drop it on the canvas to make it a new root.</li>
+      <li><strong>Tags</strong> are a shared catalog you can sprinkle on nodes — handy for "manual step", "approval needed", "risk".</li>
+    </ul>
+
+    <h2>Tech &amp; credits</h2>
+    <ul class="credits">
+      <li>Backend: <strong>Django</strong> + <strong>PostgreSQL</strong> (SQLite fallback in dev)</li>
+      <li>Frontend: plain Django templates + hand-written CSS Grid &amp; Flexbox</li>
+      <li>Layout: family-tree CSS adapted from <a href="https://github.com/dabeng/OrgChart">org-chart conventions</a></li>
+      <li>Images: hand-rolled SVG illustrations</li>
+      <li>Type: <a href="https://fonts.google.com/specimen/Inter">Inter</a> + <a href="https://fonts.google.com/specimen/Fraunces">Fraunces</a> via Google Fonts</li>
+    </ul>
+  </article>
+</section>
+{% endblock %}

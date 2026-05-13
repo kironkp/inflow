@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Tags · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Tags</h1>
+    <p class="muted">A shared catalog of labels you can sprinkle on any node — "Approval", "Manual step", "Risk", whatever fits your flows.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'tag-create' %}" class="btn primary">New tag</a>
+  </div>
+</section>
+
+{% if tags %}
+  <div class="card-grid tag-grid">
+    {% for tag in tags %}
+      <article class="tag-card" style="--tag-color: {{ tag.color }};">
+        <h3><span class="tag-swatch" aria-hidden="true"></span> <a href="{% url 'tag-detail' tag.id %}">{{ tag.name }}</a></h3>
+        <p class="muted small">{{ tag.color }}</p>
+        <div class="tag-card-actions">
+          <a href="{% url 'tag-update' tag.id %}" class="btn ghost small">Edit</a>
+          <a href="{% url 'tag-delete' tag.id %}" class="btn ghost danger small">Delete</a>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+    <h2>No tags yet</h2>
+    <p>Tags are shared across all users — anything you add here is reusable on your nodes.</p>
+    <a href="{% url 'tag-create' %}" class="btn primary">Create a tag</a>
+  </div>
+{% endif %}
+{% endblock %}

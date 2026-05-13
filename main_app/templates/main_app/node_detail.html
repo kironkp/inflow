@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ node.label }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="muted small">
+      <a href="{% url 'flowchart-detail' node.flowchart_id %}">{{ node.flowchart.title }}</a>
+      {% if node.parent %} · {{ node.breadcrumb }}{% endif %}
+    </p>
+    <h1>{{ node.label }}</h1>
+    <div class="shape-preview">
+      <span class="shape-dot" style="background: {{ node.display_color }};"></span>
+      {{ node.get_shape_display }}
+    </div>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'node-update' node.id %}" class="btn secondary small">Edit</a>
+    <a href="{% url 'node-delete' node.id %}" class="btn ghost danger small">Delete</a>
+  </div>
+</section>
+
+<div class="detail-shell">
+  <div>
+    <dl class="kv-list">
+      <div>
+        <dt>Shape</dt>
+        <dd>{{ node.get_shape_display }}</dd>
+      </div>
+      <div>
+        <dt>Parent</dt>
+        <dd>
+          {% if node.parent %}
+            <a href="{% url 'node-detail' node.parent.id %}">{{ node.parent.label }}</a>
+          {% else %}
+            <span class="muted">— Top of flow —</span>
+          {% endif %}
+        </dd>
+      </div>
+      {% if node.branch_label %}
+        <div>
+          <dt>Branch label</dt>
+          <dd>{{ node.branch_label }}</dd>
+        </div>
+      {% endif %}
+      {% if node.description %}
+        <div>
+          <dt>Notes</dt>
+          <dd>{{ node.description|linebreaksbr }}</dd>
+        </div>
+      {% endif %}
+      <div>
+        <dt>Added</dt>
+        <dd>{{ node.created_at|date:"M j, Y" }}</dd>
+      </div>
+    </dl>
+
+    {% if node.tags.exists or available_tags.exists %}
+      <section class="panel" style="margin-top: var(--s-5);">
+        <h3>Tags</h3>
+        {% if node.tags.exists %}
+          <ul class="tag-row">
+            {% for tag in node.tags.all %}
+              <li class="tag-chip removable" style="background: {{ tag.color }};">
+                {{ tag.name }}
+                <form action="{% url 'node-remove-tag' node.id tag.id %}" method="post">
+                  {% csrf_token %}
+                  <button type="submit" aria-label="Remove tag {{ tag.name }}">×</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if available_tags.exists %}
+          <details style="margin-top: var(--s-3);">
+            <summary class="muted small" style="cursor:pointer;">Add tag</summary>
+            <ul class="tag-row" style="margin-top: var(--s-2);">
+              {% for tag in available_tags %}
+                <li class="tag-chip add" style="background: {{ tag.color }};">
+                  <form action="{% url 'node-add-tag' node.id tag.id %}" method="post" style="display:inline;margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" style="background:transparent;border:0;color:#fff;font:inherit;cursor:pointer;padding:0;">+ {{ tag.name }}</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% endif %}
+      </section>
+    {% endif %}
+  </div>
+
+  <div class="detail-main">
+    <section class="panel">
+      <h2>Children</h2>
+      {% if children %}
+        <ul class="list-plain">
+          {% for child in children %}
+            <li class="move-line">
+              <a href="{% url 'node-detail' child.id %}">{{ child.label }}</a>
+              <span class="muted">· {{ child.get_shape_display }}{% if child.branch_label %} · branch "{{ child.branch_label }}"{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No children yet. Open the flow and click <strong>+ Add child</strong> on this node.</p>
+      {% endif %}
+    </section>
+
+    {% if logs %}
+      <section class="panel">
+        <h2>History</h2>
+        <ul class="history-list">
+          {% for log in logs %}
+            <li>
+              <time>{{ log.changed_at|date:"M j, Y" }}</time>
+              <span>{{ log.action }}{% if log.note %} — {{ log.note }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

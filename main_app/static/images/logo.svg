@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Three connected flow nodes: rounded rect, diamond, rect -->
+  <rect x="4" y="6" width="22" height="14" rx="3" fill="#1B4D5A"/>
+  <path d="M15 28 L30 36 L15 44 L0 36 Z" fill="#2C7DC9" transform="translate(20 0)"/>
+  <rect x="38" y="44" width="22" height="14" rx="3" fill="#2A6B45"/>
+  <!-- connectors -->
+  <path d="M15 20 L15 32" stroke="#102026" stroke-width="2" fill="none"/>
+  <path d="M35 44 L49 44" stroke="#102026" stroke-width="2" fill="none"/>
+  <!-- arrowhead -->
+  <path d="M47 41 L49 44 L47 47" stroke="#102026" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}My Flows · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>My Flows</h1>
+    <p class="muted">Every flowchart you've started lives here.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'flowchart-create' %}" class="btn primary">New flowchart</a>
+  </div>
+</section>
+
+<form method="get" class="hero-search" role="search">
+  <input type="search" name="q" value="{{ query }}" placeholder="Search flows by title or description…" class="hero-search-input" aria-label="Search flowcharts" />
+  <label class="check">
+    <input type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
+    Show archived
+  </label>
+  <button type="submit" class="btn primary">Search</button>
+</form>
+
+{% if no_match_query %}
+  <div class="empty-search">
+    <p class="muted">Nothing matched "<strong>{{ no_match_query }}</strong>".</p>
+    <a href="{% url 'flowchart-index' %}" class="btn ghost small">Clear search</a>
+  </div>
+{% endif %}
+
+{% if charts %}
+  <div class="chart-grid">
+    {% for c in charts %}
+      <a href="{% url 'flowchart-detail' c.id %}" class="chart-card">
+        <span class="chart-accent" aria-hidden="true"></span>
+        <h3>
+          {{ c.title }}
+          {% if c.archived %}<span class="badge archived">Archived</span>{% endif %}
+        </h3>
+        {% if c.description %}<p class="chart-desc">{{ c.description }}</p>{% endif %}
+        <p class="chart-meta">{{ c.n_nodes }} node{{ c.n_nodes|pluralize }} · updated {{ c.updated_at|date:"M j, Y" }}</p>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+    <h2>No flowcharts yet</h2>
+    <p>Start with a blank canvas and add your first step. The layout takes care of itself.</p>
+    <a href="{% url 'flowchart-create' %}" class="btn primary">Create your first flow</a>
+  </div>
+{% endif %}
+{% endblock %}

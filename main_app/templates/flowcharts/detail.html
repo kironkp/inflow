@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ chart.title }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{{ chart.title }}</h1>
+    {% if chart.description %}<p class="muted">{{ chart.description }}</p>{% endif %}
+    <p class="muted small">{{ node_count }} node{{ node_count|pluralize }} · updated {{ chart.updated_at|date:"M j, Y" }}</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'flowchart-update' chart.id %}" class="btn ghost small">Edit details</a>
+    <a href="{% url 'flowchart-delete' chart.id %}" class="btn ghost danger small">Delete</a>
+    <a href="{% url 'node-create' chart.id %}" class="btn primary small">Add node</a>
+  </div>
+</section>
+
+<div class="canvas-toolbar">
+  <div class="toolbar-group">
+    <button type="button" class="btn ghost small" id="zoom-out" title="Zoom out">−</button>
+    <span class="zoom-readout" id="zoom-readout">100%</span>
+    <button type="button" class="btn ghost small" id="zoom-in" title="Zoom in">+</button>
+    <button type="button" class="btn ghost small" id="fit-view" title="Fit to view">Fit</button>
+  </div>
+  <span class="toolbar-sep"></span>
+  <div class="toolbar-group">
+    <button type="button" class="btn ghost small" id="auto-layout-btn" title="Retidy with auto-layout">Auto-layout</button>
+  </div>
+  <span class="toolbar-sep"></span>
+  <div class="toolbar-group">
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-start);"></span>Start / End</span>
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-process);"></span>Process</span>
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-decision);"></span>Decision</span>
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-io);"></span>I/O</span>
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-data);"></span>Data</span>
+    <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-note);"></span>Note</span>
+  </div>
+  <span class="toolbar-hint">drag empty space = pan · scroll = zoom · drag node = move subtree · shift-drag = box-select · del = delete selected</span>
+</div>
+
+<div class="fc-viewport" id="fc-viewport" tabindex="0">
+  <div class="fc-canvas" id="fc-canvas">
+    <svg class="fc-edges" id="fc-edges" xmlns="http://www.w3.org/2000/svg"></svg>
+    <!-- Nodes rendered by JS into this canvas -->
+  </div>
+  <div class="fc-marquee" id="fc-marquee"></div>
+  <div class="fc-add-popover" id="fc-add-popover">
+    <label for="add-label">New child of <span id="add-parent-label">...</span></label>
+    <input type="text" name="label" id="add-label" placeholder="Label" maxlength="120" />
+    <input type="text" name="subtitle" id="add-subtitle" placeholder="Subtitle (optional)" maxlength="160" />
+    <select name="shape" id="add-shape">
+      <option value="process">Process</option>
+      <option value="decision">Decision</option>
+      <option value="start">Start / End</option>
+      <option value="io">Input / Output</option>
+      <option value="data">Data</option>
+      <option value="note">Note</option>
+    </select>
+    <input type="text" name="branch_label" id="add-branch" placeholder='Branch label (e.g. "Yes")' maxlength="40" />
+    <div class="popover-actions">
+      <button type="button" class="btn ghost small" id="add-cancel">Cancel</button>
+      <button type="button" class="btn primary small" id="add-submit">Add</button>
+    </div>
+  </div>
+</div>
+
+{% if recent_logs %}
+  <section class="panel" style="margin-top: var(--s-6);">
+    <h2>Recent changes</h2>
+    <ul class="list-plain">
+      {% for log in recent_logs %}
+        <li class="move-line">
+          <a href="{% url 'node-detail' log.node.id %}">{{ log.node.label }}</a>
+          <span class="muted">· {{ log.action }}{% if log.note %} — {{ log.note }}{% endif %}</span>
+          <time>{{ log.changed_at|date:"M j" }}</time>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
+
+<script id="initial-nodes" type="application/json">{{ nodes_json|safe }}</script>
+<script>
+window.INFLOW_CHART = {
+  id: {{ chart.id }},
+  quickAddUrl: "{% url 'node-quick-add' chart.id %}",
+  autoLayoutUrl: "{% url 'flowchart-auto-layout' chart.id %}",
+  positionsUrl: "{% url 'flowchart-batch-positions' chart.id %}",
+  detailUrl: "{% url 'flowchart-detail' chart.id %}",
+  nodeBaseUrl: "/nodes/",
+};
+</script>
+<script src="{% static 'js/canvas.js' %}"></script>
+{% endblock %}
