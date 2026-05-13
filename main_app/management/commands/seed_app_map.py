@@ -18,16 +18,19 @@ from main_app.models import Flowchart, Node
 
 # Section colors mirror the original HTML's per-band tints.
 SECTION_COLORS = {
-    'root':    '#102026',  # ink — root node
-    'channel': '#2F6A3B',  # green — channel strip
-    'master':  '#6B7A45',  # olive — master strip (mixer-family but distinct)
-    'aux':     '#45596B',  # slate blue — aux / send buses
-    'inst':    '#A26A0F',  # orange — instrument wall
-    'fx':      '#4C2D8E',  # purple — effects wall
-    'active':  '#2D4F78',  # blue — active instrument
-    'tutor':   '#5E4577',  # lavender — AI tutor
-    'wrist':   '#7A5A00',  # tan — wrist + session
-    'novel':   '#B85450',  # red — novel-candidate (overrides section)
+    'root':     '#102026',  # ink — root node
+    'channel':  '#2F6A3B',  # green — channel strip
+    'master':   '#6B7A45',  # olive — master strip (mixer-family but distinct)
+    'aux':      '#45596B',  # slate blue — aux / send buses
+    'timeline': '#1F4A6B',  # deep ocean — Star Wars depth-axis timeline
+    'clips':    '#7E3D5E',  # raspberry — audio + MIDI clips on the timeline
+    'inst':     '#A26A0F',  # orange — instrument wall
+    'fx':       '#4C2D8E',  # purple — effects wall
+    'library':  '#3E6B5C',  # forest teal — samples / files / Splice
+    'active':   '#2D4F78',  # blue — active instrument
+    'tutor':    '#5E4577',  # lavender — AI tutor
+    'wrist':    '#7A5A00',  # tan — wrist + session
+    'novel':    '#B85450',  # red — novel-candidate (overrides section)
 }
 
 
@@ -115,6 +118,12 @@ TREE = {
                     {'label': 'BPM display', 'subtitle': 'tap to type a value'},
                     {'label': 'Tap-tempo (mid-air)', 'novel': True,
                      'subtitle': 'tap hand in space to set BPM'},
+                    {'label': 'Global Swing', 'subtitle': 'project-wide groove — next to BPM',
+                     'children': [
+                        {'label': 'Swing amount slider'},
+                        {'label': 'Swing template', 'subtitle': 'hip-hop · jazz · triplet'},
+                        {'label': 'Preview (audible)', 'subtitle': 'scrub-to-hear changes'},
+                    ]},
                 ]},
                 {'label': 'Tap HI', 'subtitle': 'master EQ · treble'},
                 {'label': 'Tap MID'},
@@ -204,6 +213,172 @@ TREE = {
                 {'label': 'Show / Hide'},
             ],
         },
+        # ===================== TIMELINE =====================
+        {
+            'label': 'TIMELINE',
+            'subtitle': 'Star Wars depth axis · clips travel toward you, Guitar Hero style',
+            'section': 'timeline',
+            'children': [
+                {'label': 'Playhead', 'subtitle': 'where time "is" right now', 'children': [
+                    {'label': 'Tap to move'},
+                    {'label': 'Scrub by hand', 'novel': True,
+                     'subtitle': 'grab the playhead like a phonograph needle'},
+                    {'label': 'Snap to bar / beat / zero-crossing'},
+                    {'label': 'Loop region', 'novel': True,
+                     'subtitle': 'drag-paint a range of time to loop'},
+                ]},
+                {'label': 'Zoom timeline', 'subtitle': 'no walking required', 'children': [
+                    {'label': 'Pinch in / out (mid-air)', 'novel': True,
+                     'subtitle': 'two-hand pinch to scale time'},
+                    {'label': 'Zoom presets', 'subtitle': '1 bar · 4 bar · full song'},
+                    {'label': 'Reset zoom'},
+                ]},
+                {'label': 'Track lanes', 'subtitle': 'one lane per channel', 'children': [
+                    {'label': 'Tap empty lane → create clip at playhead'},
+                    {'label': 'Reorder lanes (drag vertically)'},
+                    {'label': 'Lane height (drag divider)'},
+                    {'label': 'Lane mute / solo (mirrors strip)'},
+                ]},
+                {'label': 'Markers', 'subtitle': 'jump points in the arrangement', 'children': [
+                    {'label': 'Drop marker (tap)'},
+                    {'label': 'Tap marker → jump'},
+                    {'label': 'Rename'},
+                    {'label': 'Color'},
+                ]},
+                {'label': 'Automation plane', 'novel': True,
+                 'subtitle': 'z-axis wave rising from clip — volume / velocity / pan over time',
+                 'children': [
+                    {'label': 'Pull edge up / down', 'novel': True,
+                     'subtitle': 'shapes the plane like a sheet'},
+                    {'label': 'Tap to add anchor point'},
+                    {'label': 'Choose target', 'subtitle': 'volume · pan · send · any parameter'},
+                ]},
+                {'label': 'Resize', 'novel': True, 'children': [
+                    {'label': 'Drag corner', 'novel': True},
+                    {'label': '+ button'},
+                    {'label': '− button'},
+                ]},
+                {'label': 'Move', 'novel': True, 'children': [
+                    {'label': 'Snap to surface', 'novel': True},
+                    {'label': 'Free-float'},
+                ]},
+                {'label': 'Show / Hide'},
+            ],
+        },
+        # ===================== CLIPS =====================
+        {
+            'label': 'CLIPS',
+            'subtitle': 'audio + MIDI segments traveling toward you on the timeline',
+            'section': 'clips',
+            'children': [
+                {'label': 'Tap clip → open editor', 'novel': True,
+                 'subtitle': 'expands into MIDI editor or audio editor'},
+                {'label': 'Drag clip', 'novel': True, 'children': [
+                    {'label': 'Horizontal — move in time', 'novel': True},
+                    {'label': 'Vertical — switch lane', 'novel': True},
+                    {'label': 'Snap to grid', 'subtitle': 'on / off toggle'},
+                ]},
+                {'label': 'Trim', 'novel': True, 'children': [
+                    {'label': 'Drag clip edge', 'novel': True},
+                    {'label': 'Snap to zero-crossing (audio)'},
+                ]},
+                {'label': 'Fade', 'novel': True, 'children': [
+                    {'label': 'Drag corner → fade in', 'novel': True},
+                    {'label': 'Drag corner → fade out', 'novel': True},
+                    {'label': 'Fade shape', 'subtitle': 'linear · exp · log'},
+                ]},
+                {'label': 'Splice', 'subtitle': 'cut a clip in two', 'children': [
+                    {'label': 'Scissors gesture at playhead', 'novel': True,
+                     'subtitle': 'cut-motion with hand'},
+                    {'label': 'Tap at playhead → split'},
+                    {'label': 'Re-glue (undo split)'},
+                ]},
+                {'label': 'Loop', 'children': [
+                    {'label': 'Drag right edge past clip end → loop'},
+                    {'label': 'Loop count'},
+                ]},
+                {'label': 'Time-stretch', 'novel': True,
+                 'subtitle': 'grab handles + pull to stretch in time',
+                 'children': [
+                    {'label': 'Drag stretch handles', 'novel': True},
+                    {'label': 'Preserve pitch (toggle)'},
+                ]},
+                {'label': 'Reverse', 'subtitle': 'audio only'},
+                {'label': 'Volume automation plane', 'novel': True,
+                 'subtitle': 'rising plane on top of clip = volume over time',
+                 'children': [
+                    {'label': 'Pull plane edge up / down', 'novel': True},
+                    {'label': 'Reset to flat'},
+                ]},
+                {'label': 'Long-press → context menu', 'children': [
+                    {'label': 'Duplicate'},
+                    {'label': 'Delete'},
+                    {'label': 'Rename'},
+                    {'label': 'Color'},
+                    {'label': 'Bounce to audio', 'subtitle': 'MIDI clip → render to audio file'},
+                    {'label': 'Properties', 'subtitle': 'gain · offset · tempo'},
+                ]},
+                # ----- MIDI EDITOR sub-tree -----
+                {
+                    'label': 'MIDI EDITOR',
+                    'subtitle': 'Guitar Hero for piano · opens when you tap a MIDI clip',
+                    'children': [
+                        {'label': 'Virtual keyboard (floor level)', 'novel': True,
+                         'subtitle': 'real piano you stand at / hover hands over', 'children': [
+                            {'label': 'Keys light up as notes hit', 'novel': True,
+                             'subtitle': 'feedback during playback'},
+                            {'label': 'Mirror to external MIDI controller'},
+                        ]},
+                        {'label': 'Note grid (above keyboard)', 'subtitle': 'time flows toward the keys'},
+                        {'label': 'Place note (tap on grid)'},
+                        {'label': 'Tap note → select'},
+                        {'label': 'Drag note', 'children': [
+                            {'label': 'Horizontal → time'},
+                            {'label': 'Vertical → pitch'},
+                            {'label': 'Drag end → length'},
+                        ]},
+                        {'label': 'Velocity via Z-axis', 'novel': True,
+                         'subtitle': 'pull note toward you → louder · push away → quieter',
+                         'children': [
+                            {'label': 'Velocity plane rising over notes', 'novel': True,
+                             'subtitle': 'wave/plane height = velocity, like volume automation'},
+                            {'label': 'Velocity paint', 'novel': True,
+                             'subtitle': 'sweep hand at depth across a run of notes'},
+                        ]},
+                        {'label': 'Scale lock (side button)', 'novel': True,
+                         'subtitle': 'always-visible button on MIDI editor wall',
+                         'children': [
+                            {'label': 'Choose scale', 'subtitle': 'major / minor / blues / custom'},
+                            {'label': 'Notes snap to scale on placement'},
+                        ]},
+                        {'label': 'Quantize (side button)', 'children': [
+                            {'label': 'Physical knob → amount %', 'novel': True,
+                             'subtitle': 'sliding scale, not just on/off'},
+                            {'label': 'Snap value', 'subtitle': '1/4 · 1/8 · 1/16 · 1/32'},
+                            {'label': 'AI suggests quantize', 'novel': True,
+                             'subtitle': 'tutor offers when notes are off-grid'},
+                            {'label': 'Apply / preview audible'},
+                        ]},
+                        {'label': 'Swing (per-clip)', 'subtitle': 'less central — global swing is on master',
+                         'children': [
+                            {'label': 'Amount slider'},
+                            {'label': 'Bypass'},
+                        ]},
+                        {'label': 'Humanize', 'children': [
+                            {'label': 'Timing jitter'},
+                            {'label': 'Velocity variance'},
+                        ]},
+                        {'label': 'Multi-select', 'children': [
+                            {'label': 'Box-select in air', 'novel': True},
+                            {'label': 'Move group'},
+                        ]},
+                        {'label': 'Octave shift (entire clip)'},
+                        {'label': 'Mute / Solo note'},
+                        {'label': 'Exit / collapse to clip'},
+                    ],
+                },
+            ],
+        },
         # ===================== INSTRUMENT WALL =====================
         {
             'label': 'INSTRUMENT WALL',
@@ -262,6 +437,46 @@ TREE = {
                     {'label': 'Creative / FX'},
                     {'label': 'All'},
                     {'label': 'Favs only'},
+                ]},
+                {'label': 'Tap Dismiss'},
+            ],
+        },
+        # ===================== LIBRARY (samples + files) =====================
+        {
+            'label': 'LIBRARY',
+            'subtitle': '4th wall · summoned · wrist button · samples + sounds + files',
+            'section': 'library',
+            'children': [
+                {'label': 'Tap tile → preview', 'subtitle': 'audition the sample'},
+                {'label': 'Long-press tile', 'children': [
+                    {'label': 'Favorite / Unfav'},
+                    {'label': 'Info / metadata', 'subtitle': 'tempo · key · length'},
+                    {'label': 'Reveal in source folder'},
+                ]},
+                {'label': 'Drag tile', 'novel': True, 'children': [
+                    {'label': 'Drag to timeline', 'novel': True,
+                     'subtitle': 'creates audio clip on nearest track'},
+                    {'label': 'Drag to instrument', 'novel': True,
+                     'subtitle': 'loads as sampler / replaces active instrument'},
+                    {'label': 'Drag to channel strip', 'novel': True,
+                     'subtitle': 'spins up new audio track with the sample'},
+                    {'label': 'Cancel (drop in air)'},
+                ]},
+                {'label': 'Tap category btn', 'subtitle': 'filter the wall', 'children': [
+                    {'label': 'My Files', 'subtitle': 'local / device'},
+                    {'label': 'Drums'},
+                    {'label': 'Loops'},
+                    {'label': 'One-shots'},
+                    {'label': 'Vocals'},
+                    {'label': 'FX / impacts'},
+                    {'label': 'Splice', 'novel': True,
+                     'subtitle': '3rd-party cloud — placeholder for now'},
+                    {'label': 'Favs only'},
+                ]},
+                {'label': 'Search'},
+                {'label': 'Import from device', 'children': [
+                    {'label': 'File picker'},
+                    {'label': 'Drag-and-drop from desktop (passthrough)'},
                 ]},
                 {'label': 'Tap Dismiss'},
             ],
@@ -353,6 +568,9 @@ TREE = {
                  'subtitle': 'safety net when master strip is hidden / out of reach'},
                 {'label': 'Inst Wall toggle'},
                 {'label': 'FX Wall toggle'},
+                {'label': 'Library Wall toggle', 'subtitle': 'samples + files (4th wall)'},
+                {'label': 'Splice quick-open', 'novel': True,
+                 'subtitle': 'jumps straight to Splice tab in the library'},
                 {'label': 'Simpler', 'subtitle': 'collapse to essentials'},
                 {'label': 'Explore', 'subtitle': 'expand to advanced'},
                 {'label': 'Undo'},
