@@ -623,8 +623,14 @@
       e.preventDefault();
       deleteSelected();
     } else if (e.key === 'Escape') {
-      if (!READONLY) closeAddPopover();
-      clearSelection();
+      // Priority: close add popover → exit focus → clear selection.
+      if (!READONLY && popover.classList.contains('open')) {
+        closeAddPopover();
+      } else if (document.body.classList.contains('focus-mode')) {
+        setFocus(false);
+      } else {
+        clearSelection();
+      }
     } else if (e.key === 'f' || e.key === 'F') {
       fitToView();
     }
@@ -637,6 +643,20 @@
   document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.2));
   document.getElementById('zoom-out').addEventListener('click', () => zoomBy(1 / 1.2));
   document.getElementById('fit-view').addEventListener('click', fitToView);
+
+  // Focus mode — hides the page chrome so it's basically full-screen canvas.
+  const focusBtn = document.getElementById('focus-toggle');
+  function setFocus(on) {
+    document.body.classList.toggle('focus-mode', on);
+    if (focusBtn) focusBtn.textContent = on ? 'Exit focus' : 'Focus';
+    // Resize might change available viewport space — refit to make use of it.
+    setTimeout(fitToView, 50);
+  }
+  if (focusBtn) {
+    focusBtn.addEventListener('click', () => {
+      setFocus(!document.body.classList.contains('focus-mode'));
+    });
+  }
   const autoLayoutBtn = document.getElementById('auto-layout-btn');
   if (autoLayoutBtn) {
     autoLayoutBtn.addEventListener('click', () => {

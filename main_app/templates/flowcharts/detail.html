@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{{ chart.title }} · InFlow{% endblock %}
+{% block body_class %}canvas-page{% endblock %}
 
 {% block content %}
 <section class="page-header">
@@ -28,7 +29,8 @@
     <button type="button" class="btn ghost small" id="zoom-out" title="Zoom out">−</button>
     <span class="zoom-readout" id="zoom-readout">100%</span>
     <button type="button" class="btn ghost small" id="zoom-in" title="Zoom in">+</button>
-    <button type="button" class="btn ghost small" id="fit-view" title="Fit to view">Fit</button>
+    <button type="button" class="btn ghost small" id="fit-view" title="Fit to view (F)">Fit</button>
+    <button type="button" class="btn ghost small" id="focus-toggle" title="Toggle focus mode — hides page chrome">Focus</button>
   </div>
   {% if can_edit %}
     <span class="toolbar-sep"></span>

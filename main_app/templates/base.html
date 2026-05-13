@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="{% static 'css/base.css' %}" />
     {% block head %}{% endblock %}
   </head>
-  <body>
+  <body class="{% block body_class %}{% endblock %}">
     <header class="site-header">
       <a href="{% url 'home' %}" class="logo" aria-label="InFlow home">
         <img src="{% static 'images/logo.svg' %}" alt="" />

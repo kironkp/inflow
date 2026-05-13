@@ -1021,6 +1021,56 @@ ul[id*="tags"] li label {
 .fc-viewport.read-only .fc-node { cursor: default; }
 .fc-viewport.read-only .node-actions { display: none !important; }
 
+/* =============================================================
+   Immersive canvas: only on body.canvas-page (the flowchart
+   detail route). Lets the canvas break out of the 1100px shell
+   and grow tall. focus-mode hides every page chrome element.
+   ============================================================= */
+
+body.canvas-page .site-main {
+  max-width: none;
+  padding: var(--s-5) var(--s-4) var(--s-4);
+}
+
+body.canvas-page .page-header {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.canvas-page .fc-viewport {
+  height: calc(100vh - 280px);
+  min-height: 540px;
+}
+
+/* Focus mode — hide everything except the toolbar + canvas. */
+body.canvas-page.focus-mode .site-header,
+body.canvas-page.focus-mode .site-footer,
+body.canvas-page.focus-mode .page-header {
+  display: none;
+}
+body.canvas-page.focus-mode .site-main {
+  padding: var(--s-2);
+}
+body.canvas-page.focus-mode .canvas-toolbar {
+  position: sticky;
+  top: var(--s-2);
+  z-index: 50;
+  margin-bottom: var(--s-2);
+}
+body.canvas-page.focus-mode .fc-viewport {
+  height: calc(100vh - 96px);
+  min-height: 0;
+}
+body.canvas-page.focus-mode #focus-toggle {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* "Recent changes" panel below the canvas — hide in focus too. */
+body.canvas-page.focus-mode .panel { display: none; }
+
 /* Static SVG preview shown on the home page (no JS, no drag) */
 .preview-frame {
   background:
