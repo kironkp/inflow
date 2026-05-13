@@ -51,4 +51,26 @@
     <a href="{% url 'flowchart-create' %}" class="btn primary">Create your first flow</a>
   </div>
 {% endif %}
+
+{% if shared_charts %}
+  <section style="margin-top: var(--s-7);">
+    <header style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);margin-bottom:var(--s-4);">
+      <h2 style="margin:0;">Shared with me</h2>
+      <p class="muted small" style="margin:0;">flowcharts other users have given you access to</p>
+    </header>
+    <div class="chart-grid">
+      {% for c in shared_charts %}
+        <a href="{% url 'flowchart-detail' c.id %}" class="chart-card">
+          <span class="chart-accent" aria-hidden="true"></span>
+          <h3>
+            {{ c.title }}
+            <span class="badge {% if c.share_can_edit %}soft{% else %}archived{% endif %}">{% if c.share_can_edit %}can edit{% else %}view-only{% endif %}</span>
+          </h3>
+          {% if c.description %}<p class="chart-desc">{{ c.description }}</p>{% endif %}
+          <p class="chart-meta">{{ c.n_nodes }} node{{ c.n_nodes|pluralize }} · shared by <strong>{{ c.shared_by }}</strong></p>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
 {% endblock %}

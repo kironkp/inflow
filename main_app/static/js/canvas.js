@@ -14,6 +14,7 @@
   const cfg = window.INFLOW_CHART || {};
   const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
   const SVG_NS = 'http://www.w3.org/2000/svg';
+  const READONLY = !!cfg.readonly;
 
   // ---------- DOM refs ----------
   const viewport = document.getElementById('fc-viewport');
@@ -561,23 +562,32 @@
   // ---------- Event wiring ----------
   viewport.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    if (popover.classList.contains('open') && popover.contains(e.target)) return;
-    closeAddPopover();
+    if (!READONLY && popover.classList.contains('open') && popover.contains(e.target)) return;
+    if (!READONLY) closeAddPopover();
     const nodeEl = e.target.closest('.fc-node');
     if (nodeEl) {
       const actionBtn = e.target.closest('.node-action');
       if (actionBtn) {
         e.stopPropagation();
+        if (READONLY) {
+          // Only the 'open' (link) action is meaningful in readonly mode; let the link navigate.
+          if (actionBtn.dataset.action !== 'open') e.preventDefault();
+          return;
+        }
         const id = parseInt(nodeEl.dataset.nodeId, 10);
         if (actionBtn.dataset.action === 'add') {
           openAddPopover(id);
         } else if (actionBtn.dataset.action === 'open') {
-          // Let the anchor's default click navigate.
           return;
         }
         return;
       }
-      // Click on node body: also accumulate to selection if shift-held.
+      if (READONLY) {
+        // Click on a node body in readonly: start a pan instead, so the page still feels alive.
+        startPan(e);
+        e.preventDefault();
+        return;
+      }
       const id = parseInt(nodeEl.dataset.nodeId, 10);
       if (e.shiftKey) {
         toggleSelection(id);
@@ -587,7 +597,7 @@
       return;
     }
     // Empty space click
-    if (e.shiftKey) {
+    if (!READONLY && e.shiftKey) {
       startMarquee(e);
     } else {
       clearSelection();
@@ -609,11 +619,11 @@
   // Keyboard
   viewport.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !READONLY) {
       e.preventDefault();
       deleteSelected();
     } else if (e.key === 'Escape') {
-      closeAddPopover();
+      if (!READONLY) closeAddPopover();
       clearSelection();
     } else if (e.key === 'f' || e.key === 'F') {
       fitToView();
@@ -627,10 +637,13 @@
   document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.2));
   document.getElementById('zoom-out').addEventListener('click', () => zoomBy(1 / 1.2));
   document.getElementById('fit-view').addEventListener('click', fitToView);
-  document.getElementById('auto-layout-btn').addEventListener('click', () => {
-    if (!confirm('Replace all node positions with the auto-layout tree? Your manual placement will be overwritten.')) return;
-    runAutoLayout();
-  });
+  const autoLayoutBtn = document.getElementById('auto-layout-btn');
+  if (autoLayoutBtn) {
+    autoLayoutBtn.addEventListener('click', () => {
+      if (!confirm('Replace all node positions with the auto-layout tree? Your manual placement will be overwritten.')) return;
+      runAutoLayout();
+    });
+  }
 
   function zoomBy(f) {
     const r = viewport.getBoundingClientRect();

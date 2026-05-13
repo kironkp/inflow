@@ -14,6 +14,8 @@ urlpatterns = [
     path('flowcharts/<int:pk>/archive/', views.flowchart_archive, name='flowchart-archive'),
     path('flowcharts/<int:pk>/auto-layout/', views.flowchart_auto_layout, name='flowchart-auto-layout'),
     path('flowcharts/<int:pk>/positions/', views.flowchart_batch_positions, name='flowchart-batch-positions'),
+    path('flowcharts/<int:pk>/share/', views.flowchart_share, name='flowchart-share'),
+    path('flowcharts/<int:pk>/share/<int:share_id>/remove/', views.flowchart_share_remove, name='flowchart-share-remove'),
 
     path('flowcharts/<int:flowchart_pk>/nodes/create/', views.node_create, name='node-create'),
     path('flowcharts/<int:flowchart_pk>/nodes/quick-add/', views.node_quick_add, name='node-quick-add'),

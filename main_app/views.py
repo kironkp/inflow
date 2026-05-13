@@ -1,12 +1,14 @@
 import json
 
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Max, Q
-from django.http import JsonResponse
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -16,9 +18,42 @@ from django.views.generic.edit import CreateView, DeleteView, UpdateView
 
 from .forms import FlowchartForm, NodeForm
 from .layout import NODE_HEIGHT, NODE_WIDTH, V_GAP, auto_layout_flowchart
-from .models import Flowchart, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Tag
+from .models import Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Tag
 
 VALID_SHAPES = {s for s, _ in NODE_SHAPES}
+
+
+def _chart_access(user, pk, require_edit=False):
+    """Return (chart, is_owner, can_edit) if `user` can access the flowchart.
+
+    Owners always have full access. Otherwise, an active FlowchartShare row
+    must exist; can_edit on that row determines whether writes are allowed.
+    Raises Http404 if the user has no access, or if require_edit=True and the
+    user only has view access.
+    """
+    chart = get_object_or_404(Flowchart, pk=pk)
+    if chart.user_id == user.id:
+        return chart, True, True
+    share = chart.shares.filter(user=user).first()
+    if share is None:
+        raise Http404('Flowchart not found')
+    if require_edit and not share.can_edit:
+        raise Http404('Flowchart not found')
+    return chart, False, share.can_edit
+
+
+def _node_access(user, pk, require_edit=False):
+    """Same shape as _chart_access but starting from a node id."""
+    node = get_object_or_404(Node, pk=pk)
+    chart = node.flowchart
+    if chart.user_id == user.id:
+        return node, chart, True, True
+    share = chart.shares.filter(user=user).first()
+    if share is None:
+        raise Http404('Node not found')
+    if require_edit and not share.can_edit:
+        raise Http404('Node not found')
+    return node, chart, False, share.can_edit
 
 
 def _build_preview(nodes):
@@ -195,8 +230,27 @@ def flowchart_index(request):
         charts = charts.filter(
             Q(title__icontains=query) | Q(description__icontains=query)
         )
+    shared_charts = (
+        Flowchart.objects
+        .filter(shares__user=request.user, archived=False)
+        .select_related('user')
+        .annotate(n_nodes=Count('nodes', distinct=True))
+        .distinct()
+        .order_by('-updated_at')
+    )
+    # Attach the share row (for can_edit / shared-by display) onto each shared chart.
+    share_by_chart = {
+        s.flowchart_id: s
+        for s in FlowchartShare.objects.filter(user=request.user)
+        .select_related('flowchart')
+    }
+    for c in shared_charts:
+        s = share_by_chart.get(c.id)
+        c.share_can_edit = s.can_edit if s else False
+        c.shared_by = c.user.username
     return render(request, 'flowcharts/index.html', {
         'charts': charts,
+        'shared_charts': shared_charts,
         'query': query,
         'show_archived': show_archived,
         'no_match_query': query if query and not charts.exists() else '',
@@ -231,7 +285,7 @@ class FlowchartDelete(LoginRequiredMixin, DeleteView):
 @login_required
 @ensure_csrf_cookie
 def flowchart_detail(request, pk):
-    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    chart, is_owner, can_edit = _chart_access(request.user, pk)
     nodes = list(chart.nodes.all())
     nodes_json = json.dumps(_serialize_nodes(nodes))
     recent_logs = (
@@ -243,6 +297,8 @@ def flowchart_detail(request, pk):
         'nodes_json': nodes_json,
         'node_count': len(nodes),
         'recent_logs': recent_logs,
+        'is_owner': is_owner,
+        'can_edit': can_edit,
     })
 
 
@@ -259,7 +315,7 @@ def flowchart_archive(request, pk):
 @require_POST
 def flowchart_auto_layout(request, pk):
     """Retidy every node's position with the tree algorithm."""
-    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    chart, _, _ = _chart_access(request.user, pk, require_edit=True)
     auto_layout_flowchart(chart)
     chart.save(update_fields=['updated_at'])
     return JsonResponse({'ok': True})
@@ -269,7 +325,7 @@ def flowchart_auto_layout(request, pk):
 @require_POST
 def flowchart_batch_positions(request, pk):
     """Persist drag results. Body: {"positions": [{"id": 1, "x": 100, "y": 200}, ...]}"""
-    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    chart, _, _ = _chart_access(request.user, pk, require_edit=True)
     try:
         payload = json.loads(request.body.decode('utf-8') or '{}')
     except json.JSONDecodeError:
@@ -304,7 +360,7 @@ def flowchart_batch_positions(request, pk):
 
 @login_required
 def node_create(request, flowchart_pk):
-    chart = get_object_or_404(Flowchart, pk=flowchart_pk, user=request.user)
+    chart, _, _ = _chart_access(request.user, flowchart_pk, require_edit=True)
     if request.method == 'POST':
         form = NodeForm(request.POST, flowchart=chart)
         if form.is_valid():
@@ -337,7 +393,10 @@ class NodeDetail(LoginRequiredMixin, DetailView):
     template_name = 'main_app/node_detail.html'
 
     def get_queryset(self):
-        return Node.objects.filter(flowchart__user=self.request.user)
+        u = self.request.user
+        return Node.objects.filter(
+            Q(flowchart__user=u) | Q(flowchart__shares__user=u)
+        ).distinct()
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -352,7 +411,11 @@ class NodeUpdate(LoginRequiredMixin, UpdateView):
     form_class = NodeForm
 
     def get_queryset(self):
-        return Node.objects.filter(flowchart__user=self.request.user)
+        u = self.request.user
+        return Node.objects.filter(
+            Q(flowchart__user=u) |
+            Q(flowchart__shares__user=u, flowchart__shares__can_edit=True)
+        ).distinct()
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -378,7 +441,11 @@ class NodeDelete(LoginRequiredMixin, DeleteView):
     template_name = 'main_app/node_confirm_delete.html'
 
     def get_queryset(self):
-        return Node.objects.filter(flowchart__user=self.request.user)
+        u = self.request.user
+        return Node.objects.filter(
+            Q(flowchart__user=u) |
+            Q(flowchart__shares__user=u, flowchart__shares__can_edit=True)
+        ).distinct()
 
     def get_success_url(self):
         return reverse('flowchart-detail', kwargs={'pk': self.object.flowchart_id})
@@ -388,7 +455,7 @@ class NodeDelete(LoginRequiredMixin, DeleteView):
 @require_POST
 def node_reparent(request, pk):
     """Change a node's parent without auto-relayout (canvas keeps positions)."""
-    node = get_object_or_404(Node, pk=pk, flowchart__user=request.user)
+    node, _, _, _ = _node_access(request.user, pk, require_edit=True)
     parent_id_raw = request.POST.get('parent_id')
     new_parent = None
     if parent_id_raw and parent_id_raw not in ('', 'null', 'none'):
@@ -421,7 +488,7 @@ def node_reparent(request, pk):
 @require_POST
 def node_quick_add(request, flowchart_pk):
     """Add a child node inline from the canvas (used by the in-canvas + button)."""
-    chart = get_object_or_404(Flowchart, pk=flowchart_pk, user=request.user)
+    chart, _, _ = _chart_access(request.user, flowchart_pk, require_edit=True)
     label = (request.POST.get('label') or '').strip()[:120]
     if not label:
         return JsonResponse({'error': 'Label is required'}, status=400)
@@ -463,8 +530,7 @@ def node_quick_add(request, flowchart_pk):
 @require_POST
 def node_quick_delete(request, pk):
     """Delete a node + every descendant in one hit (used by canvas keybind)."""
-    node = get_object_or_404(Node, pk=pk, flowchart__user=request.user)
-    chart = node.flowchart
+    node, chart, _, _ = _node_access(request.user, pk, require_edit=True)
     node.delete()
     chart.save(update_fields=['updated_at'])
     return JsonResponse({'ok': True})
@@ -473,7 +539,7 @@ def node_quick_delete(request, pk):
 @login_required
 @require_POST
 def node_add_tag(request, pk, tag_id):
-    node = get_object_or_404(Node, pk=pk, flowchart__user=request.user)
+    node, _, _, _ = _node_access(request.user, pk, require_edit=True)
     tag = get_object_or_404(Tag, pk=tag_id)
     node.tags.add(tag)
     return redirect('node-detail', pk=node.pk)
@@ -482,10 +548,57 @@ def node_add_tag(request, pk, tag_id):
 @login_required
 @require_POST
 def node_remove_tag(request, pk, tag_id):
-    node = get_object_or_404(Node, pk=pk, flowchart__user=request.user)
+    node, _, _, _ = _node_access(request.user, pk, require_edit=True)
     tag = get_object_or_404(Tag, pk=tag_id)
     node.tags.remove(tag)
     return redirect('node-detail', pk=node.pk)
+
+
+# ---------- Share ----------
+
+@login_required
+def flowchart_share(request, pk):
+    """List + manage who a flowchart is shared with. Owner only."""
+    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    if request.method == 'POST':
+        username = (request.POST.get('username') or '').strip()
+        can_edit = request.POST.get('can_edit') == '1'
+        if not username:
+            messages.error(request, 'Enter a username.')
+        elif username.lower() == request.user.username.lower():
+            messages.error(request, "You can't share with yourself.")
+        else:
+            try:
+                target = User.objects.get(username__iexact=username)
+                _, created = FlowchartShare.objects.update_or_create(
+                    flowchart=chart, user=target,
+                    defaults={'can_edit': can_edit},
+                )
+                kind = 'edit' if can_edit else 'view-only'
+                if created:
+                    messages.success(request, f'Shared with {target.username} ({kind}).')
+                else:
+                    messages.success(request, f'Updated {target.username} to {kind}.')
+            except User.DoesNotExist:
+                messages.error(request, f'No user named "{username}".')
+        return redirect('flowchart-share', pk=chart.pk)
+    shares = chart.shares.select_related('user').order_by('-created_at')
+    return render(request, 'flowcharts/share.html', {
+        'chart': chart,
+        'shares': shares,
+    })
+
+
+@login_required
+@require_POST
+def flowchart_share_remove(request, pk, share_id):
+    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    share = chart.shares.filter(pk=share_id).first()
+    if share:
+        username = share.user.username
+        share.delete()
+        messages.success(request, f'Removed {username}.')
+    return redirect('flowchart-share', pk=chart.pk)
 
 
 # ---------- Tags (shared catalog) ----------

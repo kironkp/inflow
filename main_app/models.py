@@ -123,6 +123,26 @@ class Node(models.Model):
         return ' › '.join(reversed(parts))
 
 
+class FlowchartShare(models.Model):
+    """Grants another user access to a flowchart.
+
+    The owning user retains full control. A share row gives the recipient
+    read-only access by default, or read-write if can_edit is True.
+    """
+    flowchart = models.ForeignKey(Flowchart, on_delete=models.CASCADE, related_name='shares')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shared_flowcharts')
+    can_edit = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('flowchart', 'user')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        kind = 'edit' if self.can_edit else 'view'
+        return f'{self.flowchart.title} → {self.user.username} ({kind})'
+
+
 class NodeLog(models.Model):
     """Audit trail of edits to a node (rename, reparent, shape change)."""
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='logs')

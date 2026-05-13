@@ -27,7 +27,7 @@ if not 'ON_HEROKU' in os.environ:
     DEBUG = True
 
 if DEBUG:
-    ALLOWED_HOSTS = ['*']
+    ALLOWED_HOSTS = ["*"]
 elif 'ON_HEROKU' in os.environ:
     ALLOWED_HOSTS = ['.herokuapp.com'] + env.list('ALLOWED_HOSTS', default=[])
 else:

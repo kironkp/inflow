@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Share {{ chart.title }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Share "{{ chart.title }}"</h1>
+    <p class="muted">Give another user access to this flowchart. View-only by default; tick "can edit" to let them drag nodes, add children, etc.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'flowchart-detail' chart.id %}" class="btn ghost small">← Back to flow</a>
+  </div>
+</section>
+
+{% if messages %}
+  <ul class="list-plain" style="margin-bottom: var(--s-5);">
+    {% for m in messages %}
+      <li class="panel quiet" style="border-color: {% if m.tags == 'error' %}var(--danger){% else %}var(--success){% endif %};">
+        {{ m }}
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="post" class="big-form" autocomplete="off">
+  {% csrf_token %}
+  <div class="field">
+    <label for="share-username">Username</label>
+    <input type="text" id="share-username" name="username" placeholder="exact username of the person to share with" required />
+    <p class="help">Type the exact username they signed up with. Case doesn't matter.</p>
+  </div>
+  <div class="field">
+    <label class="check" style="display: inline-flex; align-items: center; gap: var(--s-2);">
+      <input type="checkbox" name="can_edit" value="1" />
+      Allow them to edit (drag, add, delete nodes)
+    </label>
+    <p class="help">Leave unchecked for view-only.</p>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn primary">Share</button>
+  </div>
+</form>
+
+<section style="margin-top: var(--s-6);">
+  <h2>Currently shared with</h2>
+  {% if shares %}
+    <ul class="list-plain">
+      {% for s in shares %}
+        <li class="move-line">
+          <strong>{{ s.user.username }}</strong>
+          <span class="badge {% if s.can_edit %}soft{% else %}archived{% endif %}">{% if s.can_edit %}can edit{% else %}view-only{% endif %}</span>
+          <span class="muted small">since {{ s.created_at|date:"M j, Y" }}</span>
+          <form action="{% url 'flowchart-share-remove' chart.id s.id %}" method="post" style="margin-left: auto;">
+            {% csrf_token %}
+            <button type="submit" class="btn ghost danger small">Remove</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Not shared with anyone yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

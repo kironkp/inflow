@@ -7,12 +7,19 @@
   <div>
     <h1>{{ chart.title }}</h1>
     {% if chart.description %}<p class="muted">{{ chart.description }}</p>{% endif %}
-    <p class="muted small">{{ node_count }} node{{ node_count|pluralize }} · updated {{ chart.updated_at|date:"M j, Y" }}</p>
+    <p class="muted small">{{ node_count }} node{{ node_count|pluralize }} · updated {{ chart.updated_at|date:"M j, Y" }}{% if not is_owner %} · shared by <strong>{{ chart.user.username }}</strong>{% endif %}</p>
   </div>
   <div class="page-header-actions">
-    <a href="{% url 'flowchart-update' chart.id %}" class="btn ghost small">Edit details</a>
-    <a href="{% url 'flowchart-delete' chart.id %}" class="btn ghost danger small">Delete</a>
-    <a href="{% url 'node-create' chart.id %}" class="btn primary small">Add node</a>
+    {% if is_owner %}
+      <a href="{% url 'flowchart-share' chart.id %}" class="btn ghost small">Share</a>
+      <a href="{% url 'flowchart-update' chart.id %}" class="btn ghost small">Edit details</a>
+      <a href="{% url 'flowchart-delete' chart.id %}" class="btn ghost danger small">Delete</a>
+    {% endif %}
+    {% if can_edit %}
+      <a href="{% url 'node-create' chart.id %}" class="btn primary small">Add node</a>
+    {% else %}
+      <span class="badge archived" title="You have view-only access">View-only</span>
+    {% endif %}
   </div>
 </section>
 
@@ -23,10 +30,12 @@
     <button type="button" class="btn ghost small" id="zoom-in" title="Zoom in">+</button>
     <button type="button" class="btn ghost small" id="fit-view" title="Fit to view">Fit</button>
   </div>
-  <span class="toolbar-sep"></span>
-  <div class="toolbar-group">
-    <button type="button" class="btn ghost small" id="auto-layout-btn" title="Retidy with auto-layout">Auto-layout</button>
-  </div>
+  {% if can_edit %}
+    <span class="toolbar-sep"></span>
+    <div class="toolbar-group">
+      <button type="button" class="btn ghost small" id="auto-layout-btn" title="Retidy with auto-layout">Auto-layout</button>
+    </div>
+  {% endif %}
   <span class="toolbar-sep"></span>
   <div class="toolbar-group">
     <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-start);"></span>Start / End</span>
@@ -39,7 +48,7 @@
   <span class="toolbar-hint">drag empty space = pan · scroll = zoom · drag node = move subtree · shift-drag = box-select · del = delete selected</span>
 </div>
 
-<div class="fc-viewport" id="fc-viewport" tabindex="0">
+<div class="fc-viewport{% if not can_edit %} read-only{% endif %}" id="fc-viewport" tabindex="0">
   <div class="fc-canvas" id="fc-canvas">
     <svg class="fc-edges" id="fc-edges" xmlns="http://www.w3.org/2000/svg"></svg>
     <!-- Nodes rendered by JS into this canvas -->
@@ -89,6 +98,7 @@ window.INFLOW_CHART = {
   positionsUrl: "{% url 'flowchart-batch-positions' chart.id %}",
   detailUrl: "{% url 'flowchart-detail' chart.id %}",
   nodeBaseUrl: "/nodes/",
+  readonly: {% if can_edit %}false{% else %}true{% endif %},
 };
 </script>
 <script src="{% static 'js/canvas.js' %}"></script>
