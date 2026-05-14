@@ -6,8 +6,13 @@ from .models import Document, Flowchart, Node, Signature
 
 
 class SignupForm(UserCreationForm):
-    """Signup form with a required, unique email so collaborators can be
-    looked up by email later (sharing, future password-reset, etc)."""
+    """Email-only signup. The Django User model still has a `username`
+    column under the hood — we mirror the email into it so existing
+    sharing / login-by-username code paths keep working unchanged.
+
+    Email addresses pass Django's default username validator (it allows
+    @ . + - _) so storing them as usernames is safe.
+    """
     email = forms.EmailField(
         required=True,
         label='Email',
@@ -15,17 +20,30 @@ class SignupForm(UserCreationForm):
     )
 
     class Meta(UserCreationForm.Meta):
-        fields = ('username', 'email', 'password1', 'password2')
+        # Drop the username field — we generate it from the email.
+        fields = ('email', 'password1', 'password2')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # UserCreationForm declares username on the class; pop it so it
+        # doesn't render and isn't required.
+        self.fields.pop('username', None)
 
     def clean_email(self):
-        email = (self.cleaned_data.get('email') or '').strip()
+        email = (self.cleaned_data.get('email') or '').strip().lower()
         if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        if User.objects.filter(username__iexact=email).exists():
+            # Edge case: someone earlier used an email-shaped username.
             raise forms.ValidationError('An account with this email already exists.')
         return email
 
     def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data['email']
+        # Build the user manually because the parent save() relies on the
+        # username field being on the form.
+        email = self.cleaned_data['email']
+        user = User(username=email, email=email)
+        user.set_password(self.cleaned_data['password1'])
         if commit:
             user.save()
         return user

@@ -194,6 +194,7 @@ def about(request):
 
 def signup(request):
     error_message = ''
+    form = SignupForm()
     if request.method == 'POST':
         form = SignupForm(request.POST)
         if form.is_valid():
@@ -224,10 +225,11 @@ def signup(request):
                 branch_label='No', sort_order=4, subtitle='loop back to the step',
             )
             auto_layout_flowchart(chart)
-            login(request, user)
+            # We have two auth backends configured (EmailOrUsername + Model);
+            # tell login() which one issued this user so it doesn't raise.
+            login(request, user, backend='main_app.auth_backends.EmailOrUsernameBackend')
             return redirect('flowchart-index')
-        error_message = 'Invalid sign up - try again'
-    form = SignupForm()
+        error_message = 'Please correct the errors below.'
     return render(request, 'registration/signup.html', {'form': form, 'error': error_message})
 
 
@@ -884,6 +886,25 @@ def document_detail(request, pk):
         'signatures': signatures,
         'sign_url': sign_url,
     })
+
+
+@login_required
+def document_download(request, pk):
+    """Owner-only PDF of the document + all signatures."""
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    return _pdf_response(doc)
+
+
+def document_public_download(request, token):
+    """Public PDF download — any signer (with the share token) can grab a copy.
+    Available regardless of status; drafts are still hidden via 404."""
+    try:
+        doc = Document.objects.get(share_token=token)
+    except (Document.DoesNotExist, ValueError):
+        raise Http404('No such document.')
+    if doc.status == Document.STATUS_DRAFT:
+        raise Http404('Document not available.')
+    return _pdf_response(doc)
 
 
 @login_required
