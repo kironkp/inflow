@@ -137,3 +137,18 @@ AUTHENTICATION_BACKENDS = [
     'main_app.auth_backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Email — used to notify document owners when someone signs their NDA.
+# Default to console backend so dev sees the message text in the runserver
+# terminal. For real delivery (on Heroku, or local with a real SMTP),
+# set EMAIL_HOST + EMAIL_HOST_USER + EMAIL_HOST_PASSWORD as env vars.
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', '1') == '1'
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'InFlow <noreply@inflow.app>')

@@ -18,6 +18,7 @@ urlpatterns = [
     path('flowcharts/<int:pk>/positions/', views.flowchart_batch_positions, name='flowchart-batch-positions'),
     path('flowcharts/<int:pk>/share/', views.flowchart_share, name='flowchart-share'),
     path('flowcharts/<int:pk>/share/<int:share_id>/remove/', views.flowchart_share_remove, name='flowchart-share-remove'),
+    path('flowcharts/<int:pk>/invite/<int:invite_id>/remove/', views.flowchart_invite_remove, name='flowchart-invite-remove'),
 
     path('flowcharts/<int:flowchart_pk>/nodes/create/', views.node_create, name='node-create'),
     path('flowcharts/<int:flowchart_pk>/nodes/quick-add/', views.node_quick_add, name='node-quick-add'),
@@ -41,5 +42,7 @@ urlpatterns = [
     path('documents/<int:pk>/', views.document_detail, name='document-detail'),
     path('documents/<int:pk>/edit/', views.document_edit, name='document-edit'),
     path('documents/<int:pk>/delete/', views.document_delete, name='document-delete'),
+    path('documents/<int:pk>/download/', views.document_download, name='document-download'),
     path('sign/<uuid:token>/', views.document_public_sign, name='document-public-sign'),
+    path('sign/<uuid:token>/download/', views.document_public_download, name='document-public-download'),
 ]

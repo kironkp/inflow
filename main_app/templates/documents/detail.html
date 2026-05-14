@@ -20,6 +20,7 @@
     </p>
   </div>
   <div class="page-header-actions">
+    <a href="{% url 'document-download' document.id %}" class="btn primary small" title="Download document + all signatures as a PDF">Download PDF</a>
     <a href="{% url 'document-edit' document.id %}" class="btn ghost small">Edit</a>
   </div>
 </section>

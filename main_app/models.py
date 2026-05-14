@@ -151,6 +151,33 @@ class FlowchartShare(models.Model):
         return f'{self.flowchart.title} → {self.user.username} ({kind})'
 
 
+class FlowchartInvitation(models.Model):
+    """A pending share for an email that doesn't yet have an InFlow account.
+
+    When the owner shares with a non-existent email, we save it here instead
+    of erroring. When someone signs up with that email, the matching invites
+    are converted to live FlowchartShare rows automatically.
+    """
+    flowchart = models.ForeignKey(Flowchart, on_delete=models.CASCADE, related_name='invitations')
+    email = models.EmailField()
+    can_edit = models.BooleanField(default=False)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('flowchart', 'email')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        kind = 'edit' if self.can_edit else 'view'
+        return f'{self.flowchart.title} → {self.email} ({kind}, pending)'
+
+    @property
+    def is_pending(self):
+        return self.claimed_at is None
+
+
 class NodeLog(models.Model):
     """Audit trail of edits to a node (rename, reparent, shape change)."""
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='logs')

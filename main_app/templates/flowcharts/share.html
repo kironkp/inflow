@@ -62,4 +62,25 @@
     <p class="muted">Not shared with anyone yet.</p>
   {% endif %}
 </section>
+
+{% if pending_invites %}
+  <section style="margin-top: var(--s-6);">
+    <h2>Pending invitations</h2>
+    <p class="muted small">These people don't have an InFlow account yet. The flow will appear in their Shared list as soon as they sign up with the email below.</p>
+    <ul class="list-plain">
+      {% for inv in pending_invites %}
+        <li class="move-line">
+          <strong>{{ inv.email }}</strong>
+          <span class="badge {% if inv.can_edit %}soft{% else %}archived{% endif %}">{% if inv.can_edit %}can edit{% else %}view-only{% endif %}</span>
+          <span class="badge archived">pending signup</span>
+          <span class="muted small">invited {{ inv.created_at|date:"M j, Y" }}</span>
+          <form action="{% url 'flowchart-invite-remove' chart.id inv.id %}" method="post" style="margin-left: auto;">
+            {% csrf_token %}
+            <button type="submit" class="btn ghost danger small">Cancel</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
 {% endblock %}

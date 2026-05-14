@@ -20,7 +20,7 @@ from django.views.generic.edit import CreateView, DeleteView, UpdateView
 
 from .forms import DocumentForm, FlowchartForm, NodeForm, SignForm, SignupForm
 from .layout import V_GAP, _size, auto_layout_flowchart
-from .models import Document, Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Signature, Tag
+from .models import Document, Flowchart, FlowchartInvitation, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Signature, Tag
 # pdf_render imports reportlab; deferred to view-call time so the rest of
 # the app boots even if reportlab isn't installed in this environment.
 
@@ -193,6 +193,29 @@ def about(request):
     return render(request, 'about.html')
 
 
+def _materialize_invitations_for(user):
+    """Convert any pending FlowchartInvitation rows that match this user's
+    email into live FlowchartShare rows. Idempotent.
+
+    Returns the number of invitations materialized.
+    """
+    email = (user.email or '').strip().lower()
+    if not email:
+        return 0
+    invites = FlowchartInvitation.objects.filter(email__iexact=email, claimed_at__isnull=True)
+    count = 0
+    for inv in invites:
+        FlowchartShare.objects.update_or_create(
+            flowchart=inv.flowchart,
+            user=user,
+            defaults={'can_edit': inv.can_edit},
+        )
+        inv.claimed_at = timezone.now()
+        inv.save(update_fields=['claimed_at'])
+        count += 1
+    return count
+
+
 def signup(request):
     error_message = ''
     form = SignupForm()
@@ -226,6 +249,15 @@ def signup(request):
                 branch_label='No', sort_order=4, subtitle='loop back to the step',
             )
             auto_layout_flowchart(chart)
+            # If anyone pre-shared a flow with this email before they signed
+            # up, materialize those invitations into real share rows now.
+            materialized = _materialize_invitations_for(user)
+            if materialized:
+                messages.success(
+                    request,
+                    f'Welcome! {materialized} flow{"s" if materialized != 1 else ""} '
+                    f'shared with your email {"are" if materialized != 1 else "is"} now in your Shared list.',
+                )
             # We have two auth backends configured (EmailOrUsername + Model);
             # tell login() which one issued this user so it doesn't raise.
             login(request, user, backend='main_app.auth_backends.EmailOrUsernameBackend')
@@ -600,7 +632,31 @@ def flowchart_share(request, pk):
                 if target is None:
                     target = User.objects.filter(email__iexact=ident).first()
             if target is None:
-                messages.error(request, f'No account found for "{ident}".')
+                # No account yet — only fall back to an invitation if the
+                # recipient is an email (not a misspelled username).
+                if '@' in ident:
+                    inv, created = FlowchartInvitation.objects.update_or_create(
+                        flowchart=chart, email=ident.lower(),
+                        defaults={
+                            'can_edit': can_edit,
+                            'invited_by': request.user,
+                            'claimed_at': None,
+                        },
+                    )
+                    kind = 'edit' if can_edit else 'view-only'
+                    if created:
+                        messages.success(
+                            request,
+                            f'Invited {ident} ({kind}). They\'ll see the flow in their '
+                            f'Shared list as soon as they sign up with this email.',
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f'Updated pending invite for {ident} to {kind}.',
+                        )
+                else:
+                    messages.error(request, f'No account found for "{ident}". To pre-share before they sign up, enter their email address.')
             else:
                 _, created = FlowchartShare.objects.update_or_create(
                     flowchart=chart, user=target,
@@ -613,10 +669,24 @@ def flowchart_share(request, pk):
                     messages.success(request, f'Updated {target.username} to {kind}.')
         return redirect('flowchart-share', pk=chart.pk)
     shares = chart.shares.select_related('user').order_by('-created_at')
+    pending_invites = chart.invitations.filter(claimed_at__isnull=True).order_by('-created_at')
     return render(request, 'flowcharts/share.html', {
         'chart': chart,
         'shares': shares,
+        'pending_invites': pending_invites,
     })
+
+
+@login_required
+@require_POST
+def flowchart_invite_remove(request, pk, invite_id):
+    chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
+    inv = chart.invitations.filter(pk=invite_id, claimed_at__isnull=True).first()
+    if inv:
+        email = inv.email
+        inv.delete()
+        messages.success(request, f'Cancelled invitation for {email}.')
+    return redirect('flowchart-share', pk=chart.pk)
 
 
 @login_required
@@ -966,9 +1036,14 @@ def document_public_sign(request, token):
             sig.ip_address = _client_ip(request)
             sig.user_agent = (request.META.get('HTTP_USER_AGENT') or '')[:320]
             sig.save()
+            # Notify the owner — works in dev (console backend) immediately;
+            # on Heroku it requires EMAIL_HOST/EMAIL_HOST_USER env vars
+            # (otherwise also falls back to console).
+            _send_signed_notification(request, sig)
             return render(request, 'documents/signed.html', {
                 'document': doc,
                 'signature': sig,
+                'download_url': reverse('document-public-download', kwargs={'token': str(doc.share_token)}),
             })
     else:
         form = SignForm()
@@ -977,6 +1052,7 @@ def document_public_sign(request, token):
         'document': doc,
         'form': form,
         'is_open': doc.status == Document.STATUS_OPEN,
+        'download_url': reverse('document-public-download', kwargs={'token': str(doc.share_token)}),
     })
 
 

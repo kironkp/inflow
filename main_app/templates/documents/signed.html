@@ -12,8 +12,12 @@
       <h2>Your signature</h2>
       <p class="muted small">{{ signature.signed_at|date:"M j, Y" }} at {{ signature.signed_at|time:"g:i A" }} (server time)</p>
       <div class="cursive-signature">{{ signature.typed_signature }}</div>
+      <div style="margin-top: var(--s-4); display: flex; gap: var(--s-3); flex-wrap: wrap;">
+        <a href="{{ download_url }}" class="btn primary">Download signed PDF</a>
+        <button type="button" class="btn ghost" onclick="window.print();">Print</button>
+      </div>
       <p class="muted small" style="margin-top: var(--s-3);">
-        Save or screenshot this page for your records. The document owner ({{ document.owner.username }}) has been notified of your signature.
+        Save the PDF for your records. The document owner ({{ document.owner.username }}) has been notified of your signature.
       </p>
     </section>
 
