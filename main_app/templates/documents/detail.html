@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ document.title }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="muted small"><a href="{% url 'document-index' %}">Documents</a></p>
+    <h1>{{ document.title }}</h1>
+    <p class="muted">
+      {% if document.status == 'draft' %}
+        <span class="badge archived">Draft — share link is inactive until you mark this Open for signing.</span>
+      {% elif document.status == 'open' %}
+        <span class="badge soft">Open for signing</span> · {{ document.signature_count }} signature{{ document.signature_count|pluralize }}
+      {% else %}
+        <span class="badge archived">Closed</span> · {{ document.signature_count }} signature{{ document.signature_count|pluralize }} on record
+      {% endif %}
+      · updated {{ document.updated_at|date:"M j, Y" }}
+      {% if document.flowchart %} · linked to <a href="{% url 'flowchart-detail' document.flowchart.id %}">{{ document.flowchart.title }}</a>{% endif %}
+    </p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'document-edit' document.id %}" class="btn ghost small">Edit</a>
+  </div>
+</section>
+
+{% if messages %}
+  <ul class="list-plain" style="margin-bottom: var(--s-5);">
+    {% for m in messages %}
+      <li class="panel quiet" style="border-color: {% if m.tags == 'error' %}var(--danger){% else %}var(--success){% endif %};">{{ m }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if document.status != 'draft' %}
+  <section class="panel" style="margin-bottom: var(--s-5);">
+    <h2 style="margin-bottom: var(--s-2);">Share link</h2>
+    <p class="muted small">Anyone with this link can read and (if status is "Open") sign the document. No InFlow account needed.</p>
+    <div style="display: flex; gap: var(--s-2); align-items: center; margin-top: var(--s-3);">
+      <input type="text" value="{{ sign_url }}" readonly id="sign-url" style="flex: 1; font-family: monospace; font-size: 0.9rem;" onfocus="this.select()" />
+      <button type="button" class="btn secondary small" onclick="navigator.clipboard.writeText(document.getElementById('sign-url').value); this.textContent='Copied'; setTimeout(()=>this.textContent='Copy',1500);">Copy</button>
+      <a href="{{ sign_url }}" target="_blank" rel="noopener" class="btn ghost small">Preview</a>
+    </div>
+  </section>
+{% endif %}
+
+<div class="detail-shell">
+  <div class="detail-main">
+    <section class="panel">
+      <h2>Document body</h2>
+      <div class="document-body">{{ document.body|linebreaks }}</div>
+    </section>
+  </div>
+  <div>
+    <section class="panel">
+      <h2>Signatures ({{ document.signature_count }})</h2>
+      {% if signatures %}
+        <ul class="list-plain">
+          {% for sig in signatures %}
+            <li class="signature-row">
+              <div class="signature-row-name">
+                <strong>{{ sig.signer_name }}</strong>
+                {% if sig.signer_email %}<span class="muted small">· {{ sig.signer_email }}</span>{% endif %}
+              </div>
+              <div class="cursive-signature small">{{ sig.typed_signature }}</div>
+              <p class="muted small">
+                Signed {{ sig.signed_at|date:"M j, Y" }} at {{ sig.signed_at|time:"g:i A" }}
+                {% if sig.ip_address %} · from {{ sig.ip_address }}{% endif %}
+              </p>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No signatures yet. Share the link above to collect signatures.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

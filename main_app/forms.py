@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import Flowchart, Node
+from .models import Document, Flowchart, Node, Signature
 
 
 class SignupForm(UserCreationForm):
@@ -48,11 +48,11 @@ class NodeForm(forms.ModelForm):
         help_text='Type a label to create a new parent and place this node under it.',
     )
 
-    field_order = ['label', 'subtitle', 'shape', 'branch_label', 'description', 'parent', 'new_parent', 'color', 'tags']
+    field_order = ['label', 'subtitle', 'shape', 'branch_label', 'description', 'image', 'parent', 'new_parent', 'color', 'tags']
 
     class Meta:
         model = Node
-        fields = ['label', 'subtitle', 'shape', 'branch_label', 'description', 'parent', 'color', 'tags']
+        fields = ['label', 'subtitle', 'shape', 'branch_label', 'description', 'image', 'parent', 'color', 'tags']
         widgets = {
             'subtitle': forms.TextInput(attrs={'placeholder': 'Optional second line (italic)'}),
             'description': forms.Textarea(attrs={'rows': 3}),
@@ -109,3 +109,63 @@ class NodeForm(forms.ModelForm):
         if self._flowchart is not None and not self.instance.flowchart_id:
             self.instance.flowchart = self._flowchart
         return super().save(commit=commit)
+
+
+# ---------- Documents (NDA flow) ----------
+
+class DocumentForm(forms.ModelForm):
+    class Meta:
+        model = Document
+        fields = ['title', 'body', 'flowchart', 'status']
+        widgets = {
+            'title': forms.TextInput(attrs={'placeholder': 'e.g. Mutual NDA — VR/AR DAW patent prep'}),
+            'body': forms.Textarea(attrs={
+                'rows': 18,
+                'placeholder': 'Paste the document text here.\n\nLine breaks and blank lines are preserved.',
+            }),
+        }
+
+    def __init__(self, *args, owner=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit the flowchart picker to the owner's charts.
+        if owner is not None:
+            self.fields['flowchart'].queryset = Flowchart.objects.filter(user=owner)
+            self.fields['flowchart'].empty_label = '— Not linked to a flowchart —'
+
+
+class SignForm(forms.ModelForm):
+    accept = forms.BooleanField(
+        required=True,
+        label="I have read this document and I agree to be bound by it. My typed name is my electronic signature.",
+    )
+
+    class Meta:
+        model = Signature
+        fields = ['signer_name', 'signer_email', 'typed_signature']
+        labels = {
+            'signer_name': 'Full legal name',
+            'signer_email': 'Email (optional — used for your records)',
+            'typed_signature': 'Type your name to sign',
+        }
+        widgets = {
+            'signer_name': forms.TextInput(attrs={'placeholder': 'Jane Q. Lawyer'}),
+            'signer_email': forms.EmailInput(attrs={'placeholder': 'jane@firm.com'}),
+            'typed_signature': forms.TextInput(attrs={
+                'placeholder': 'Type your name here',
+                'class': 'signature-input',
+                'autocomplete': 'off',
+            }),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        name = (cleaned.get('signer_name') or '').strip()
+        sig = (cleaned.get('typed_signature') or '').strip()
+        # Require the typed signature to match the legal name (case-insensitive,
+        # ignoring extra whitespace) — this is the "you can't sign as someone
+        # else" check that DocuSign and similar services enforce.
+        if name and sig and name.lower().split() != sig.lower().split():
+            raise forms.ValidationError(
+                'Your typed signature must match the legal name you entered above.'
+            )
+        return cleaned

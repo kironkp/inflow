@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Sign: {{ document.title }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="sign-page">
+  <h1>{{ document.title }}</h1>
+  <p class="muted">{{ document.owner.username }} is asking you to read and sign this document.</p>
+
+  <section class="panel sign-document-body">
+    {{ document.body|linebreaks }}
+  </section>
+
+  {% if is_open %}
+    <section class="panel">
+      <h2>Sign</h2>
+      <form method="post" autocomplete="off">
+        {% csrf_token %}
+        {% for field in form %}
+          {% if field.name == 'accept' %}
+            <div class="field {% if field.errors %}has-error{% endif %}" style="margin-top: var(--s-4);">
+              <label class="check" style="display: inline-flex; align-items: flex-start; gap: var(--s-2); font-weight: 500;">
+                {{ field }} <span style="font-weight: 500;">{{ field.label }}</span>
+              </label>
+              {% for err in field.errors %}<p class="error">{{ err }}</p>{% endfor %}
+            </div>
+          {% else %}
+            <div class="field {% if field.errors %}has-error{% endif %}">
+              <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<p class="help">{{ field.help_text|safe }}</p>{% endif %}
+              {% for err in field.errors %}<p class="error">{{ err }}</p>{% endfor %}
+              {% if field.name == 'typed_signature' %}
+                <p class="help">Your signature renders as you type:</p>
+                <div class="cursive-signature signature-preview" id="signature-preview"></div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% if form.non_field_errors %}
+          <div class="form-error">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div class="form-actions">
+          <button type="submit" class="btn primary large">Sign document</button>
+        </div>
+      </form>
+    </section>
+
+    <script>
+      (function() {
+        const input = document.querySelector('.signature-input');
+        const preview = document.getElementById('signature-preview');
+        if (input && preview) {
+          const update = () => { preview.textContent = input.value || ' '; };
+          input.addEventListener('input', update);
+          update();
+        }
+      })();
+    </script>
+  {% else %}
+    <section class="panel">
+      <h2>This document is closed</h2>
+      <p class="muted">The owner has stopped accepting new signatures. Contact them if you believe this is a mistake.</p>
+    </section>
+  {% endif %}
+
+  <footer class="sign-footer">
+    <p class="muted small">Powered by InFlow · <a href="{% url 'home' %}">inflow</a></p>
+  </footer>
+</section>
+{% endblock %}

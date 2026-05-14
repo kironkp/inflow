@@ -7,6 +7,9 @@ MASTER-DOCUMENT*.txt
 MASTER-DOCUMENT*.md
 CHECKLIST.md
 
+# Legal documents — NDA templates, signed copies, anything legal-folder
+legal/
+
 # Python
 __pycache__/
 *.py[cod]

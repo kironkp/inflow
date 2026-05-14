@@ -34,4 +34,12 @@ urlpatterns = [
     path('tags/<int:pk>/', views.TagDetail.as_view(), name='tag-detail'),
     path('tags/<int:pk>/update/', views.TagUpdate.as_view(), name='tag-update'),
     path('tags/<int:pk>/delete/', views.TagDelete.as_view(), name='tag-delete'),
+
+    # Documents (NDA / signable docs)
+    path('documents/', views.document_list, name='document-index'),
+    path('documents/create/', views.document_create, name='document-create'),
+    path('documents/<int:pk>/', views.document_detail, name='document-detail'),
+    path('documents/<int:pk>/edit/', views.document_edit, name='document-edit'),
+    path('documents/<int:pk>/delete/', views.document_delete, name='document-delete'),
+    path('sign/<uuid:token>/', views.document_public_sign, name='document-public-sign'),
 ]

@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import User
 from django.db import models
 from django.urls import reverse
@@ -88,6 +90,12 @@ class Node(models.Model):
         help_text='Optional label shown on the line from the parent (e.g. "Yes", "No").',
     )
     description = models.TextField(blank=True)
+    image = models.ImageField(
+        upload_to='node_images/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Optional attached image — useful for screenshots of sub-flows, wireframes, or reference diagrams.',
+    )
     color = models.CharField(
         max_length=20,
         blank=True,
@@ -155,3 +163,76 @@ class NodeLog(models.Model):
 
     def __str__(self):
         return f'{self.node.label} · {self.action} · {self.changed_at:%Y-%m-%d}'
+
+
+# ---------- Documents & signatures (NDA flow) ----------
+
+class Document(models.Model):
+    """A signable document — typically an NDA tied to a flowchart/project.
+
+    Owner-managed. Shareable via an unguessable share_token; anyone with the
+    link can read the body and sign without an InFlow account.
+    """
+    STATUS_DRAFT = 'draft'
+    STATUS_OPEN = 'open'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft — not shareable yet'),
+        (STATUS_OPEN, 'Open for signing'),
+        (STATUS_CLOSED, 'Closed — no further signatures'),
+    ]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='documents')
+    flowchart = models.ForeignKey(
+        Flowchart, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documents',
+        help_text='Optional: link this document to a flowchart so collaborators see it in context.',
+    )
+    title = models.CharField(max_length=160)
+    body = models.TextField(
+        help_text='The full document text. Paste your NDA / agreement here. Line breaks preserved.',
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('document-detail', kwargs={'pk': self.id})
+
+    @property
+    def sign_url_path(self):
+        return reverse('document-public-sign', kwargs={'token': str(self.share_token)})
+
+    @property
+    def signature_count(self):
+        return self.signatures.count()
+
+
+class Signature(models.Model):
+    """One signing event on a document. No InFlow account required."""
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='signatures')
+    signer_name = models.CharField(
+        max_length=160,
+        help_text='The full legal name the signer typed.',
+    )
+    signer_email = models.EmailField(blank=True)
+    signed_at = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=320, blank=True)
+    # The exact text the signer typed in the signature field — usually the
+    # same as signer_name, but kept separate in case the cursive rendering
+    # is later changed and we want to re-render historical signatures.
+    typed_signature = models.CharField(max_length=160)
+
+    class Meta:
+        ordering = ['signed_at']
+
+    def __str__(self):
+        return f'{self.signer_name} → {self.document.title} ({self.signed_at:%Y-%m-%d})'

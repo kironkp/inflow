@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Signed: {{ document.title }} · InFlow{% endblock %}
+
+{% block content %}
+<section class="sign-page">
+  <div class="signed-confirm">
+    <h1>Signed</h1>
+    <p class="lead">Thank you, {{ signature.signer_name }}. Your signature on <strong>"{{ document.title }}"</strong> has been recorded.</p>
+
+    <section class="panel">
+      <h2>Your signature</h2>
+      <p class="muted small">{{ signature.signed_at|date:"M j, Y" }} at {{ signature.signed_at|time:"g:i A" }} (server time)</p>
+      <div class="cursive-signature">{{ signature.typed_signature }}</div>
+      <p class="muted small" style="margin-top: var(--s-3);">
+        Save or screenshot this page for your records. The document owner ({{ document.owner.username }}) has been notified of your signature.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2>What you signed</h2>
+      <div class="sign-document-body">{{ document.body|linebreaks }}</div>
+    </section>
+  </div>
+
+  <footer class="sign-footer">
+    <p class="muted small">Powered by InFlow · <a href="{% url 'home' %}">inflow</a></p>
+  </footer>
+</section>
+{% endblock %}

@@ -50,6 +50,16 @@
           <dd>{{ node.description|linebreaksbr }}</dd>
         </div>
       {% endif %}
+      {% if node.image %}
+        <div>
+          <dt>Image</dt>
+          <dd>
+            <a href="{{ node.image.url }}" target="_blank" rel="noopener" title="Open full size">
+              <img src="{{ node.image.url }}" alt="{{ node.label }} attached image" style="max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); display: block;">
+            </a>
+          </dd>
+        </div>
+      {% endif %}
       <div>
         <dt>Added</dt>
         <dd>{{ node.created_at|date:"M j, Y" }}</dd>

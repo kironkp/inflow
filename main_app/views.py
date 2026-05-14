@@ -1,10 +1,12 @@
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
@@ -16,9 +18,10 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 
-from .forms import FlowchartForm, NodeForm, SignupForm
+from .forms import DocumentForm, FlowchartForm, NodeForm, SignForm, SignupForm
 from .layout import V_GAP, _size, auto_layout_flowchart
-from .models import Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Tag
+from .models import Document, Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Signature, Tag
+from .pdf_render import render_document_pdf
 
 VALID_SHAPES = {s for s, _ in NODE_SHAPES}
 
@@ -774,6 +777,173 @@ def flowchart_import(request):
         messages.success(request, f'Imported "{title}" with {len(node_rows)} nodes.')
         return redirect('flowchart-detail', pk=new_chart.pk)
     return render(request, 'flowcharts/import.html')
+
+
+# ---------- Documents (NDA flow) ----------
+
+def _client_ip(request):
+    """Heroku puts the real client IP in X-Forwarded-For; fall back to REMOTE_ADDR."""
+    fwd = request.META.get('HTTP_X_FORWARDED_FOR', '').strip()
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR') or None
+
+
+def _slug_for_pdf(title):
+    keep = [c if (c.isalnum() or c in '-_') else '-' for c in (title or 'document').strip()]
+    return ''.join(keep).strip('-')[:80] or 'document'
+
+
+def _pdf_response(document, attachment_name=None):
+    blob = render_document_pdf(document)
+    fname = attachment_name or f'{_slug_for_pdf(document.title)}-signed.pdf'
+    resp = HttpResponse(blob, content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return resp
+
+
+def _send_signed_notification(request, signature):
+    """Email the document owner when a new signature is recorded.
+
+    In dev (no SMTP configured), Django's console backend prints the message
+    to the runserver terminal so you can see exactly what would be sent.
+    """
+    doc = signature.document
+    owner_email = (doc.owner.email or '').strip()
+    if not owner_email:
+        return  # No address to notify — silently skip (we still saved the signature)
+
+    detail_path = reverse('document-detail', kwargs={'pk': doc.pk})
+    detail_url = request.build_absolute_uri(detail_path)
+    signed_at_str = signature.signed_at.strftime('%B %-d, %Y at %I:%M %p UTC')
+
+    subject = f'Signed: "{doc.title}" — {signature.signer_name}'
+    text_body = (
+        f'{signature.signer_name} just signed "{doc.title}" on InFlow.\n\n'
+        f'Signed at: {signed_at_str}\n'
+        f'IP address: {signature.ip_address or "unknown"}\n'
+        f'Signer email: {signature.signer_email or "(not provided)"}\n\n'
+        f'View the signed document and download the PDF:\n{detail_url}\n'
+    )
+    html_body = (
+        f'<p><strong>{signature.signer_name}</strong> just signed '
+        f'<em>"{doc.title}"</em> on InFlow.</p>'
+        f'<ul>'
+        f'<li>Signed at: {signed_at_str}</li>'
+        f'<li>IP address: {signature.ip_address or "unknown"}</li>'
+        f'<li>Signer email: {signature.signer_email or "(not provided)"}</li>'
+        f'</ul>'
+        f'<p><a href="{detail_url}">View and download the signed PDF</a></p>'
+    )
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@inflow.app'),
+        to=[owner_email],
+    )
+    msg.attach_alternative(html_body, 'text/html')
+    # Don't blow up the signing flow if email fails — log and move on.
+    try:
+        msg.send(fail_silently=False)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning(
+            'Failed to send signed-notification email to %s: %s', owner_email, exc
+        )
+
+
+@login_required
+def document_list(request):
+    docs = Document.objects.filter(owner=request.user)
+    return render(request, 'documents/index.html', {'documents': docs})
+
+
+@login_required
+def document_create(request):
+    if request.method == 'POST':
+        form = DocumentForm(request.POST, owner=request.user)
+        if form.is_valid():
+            doc = form.save(commit=False)
+            doc.owner = request.user
+            doc.save()
+            messages.success(request, f'Created "{doc.title}". Set status to "Open for signing" when you\'re ready to share.')
+            return redirect('document-detail', pk=doc.pk)
+    else:
+        form = DocumentForm(owner=request.user)
+    return render(request, 'documents/form.html', {'form': form, 'mode': 'create'})
+
+
+@login_required
+def document_detail(request, pk):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    signatures = doc.signatures.all()
+    sign_url = request.build_absolute_uri(doc.sign_url_path)
+    return render(request, 'documents/detail.html', {
+        'document': doc,
+        'signatures': signatures,
+        'sign_url': sign_url,
+    })
+
+
+@login_required
+def document_edit(request, pk):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    if request.method == 'POST':
+        form = DocumentForm(request.POST, instance=doc, owner=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Document updated.')
+            return redirect('document-detail', pk=doc.pk)
+    else:
+        form = DocumentForm(instance=doc, owner=request.user)
+    return render(request, 'documents/form.html', {'form': form, 'mode': 'edit', 'document': doc})
+
+
+@login_required
+@require_POST
+def document_delete(request, pk):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    title = doc.title
+    doc.delete()
+    messages.success(request, f'Deleted "{title}".')
+    return redirect('document-index')
+
+
+def document_public_sign(request, token):
+    """Anyone with the share token can view + sign. No login required.
+
+    Honors document status: drafts return 404, closed documents are read-only.
+    """
+    try:
+        doc = Document.objects.get(share_token=token)
+    except (Document.DoesNotExist, ValueError):
+        raise Http404('No such document.')
+    if doc.status == Document.STATUS_DRAFT:
+        # Owners can preview drafts via the regular detail page; the public
+        # link returns 404 until they set status to open.
+        raise Http404('Document not available for signing.')
+
+    if request.method == 'POST' and doc.status == Document.STATUS_OPEN:
+        form = SignForm(request.POST)
+        if form.is_valid():
+            sig = form.save(commit=False)
+            sig.document = doc
+            sig.ip_address = _client_ip(request)
+            sig.user_agent = (request.META.get('HTTP_USER_AGENT') or '')[:320]
+            sig.save()
+            return render(request, 'documents/signed.html', {
+                'document': doc,
+                'signature': sig,
+            })
+    else:
+        form = SignForm()
+
+    return render(request, 'documents/sign.html', {
+        'document': doc,
+        'form': form,
+        'is_open': doc.status == Document.STATUS_OPEN,
+    })
 
 
 # ---------- Tags (shared catalog) ----------

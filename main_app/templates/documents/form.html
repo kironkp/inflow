@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if mode == 'create' %}New document{% else %}Edit document{% endif %} · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{% if mode == 'create' %}New document{% else %}Edit document{% endif %}</h1>
+    <p class="muted">Paste your NDA / agreement text into the body. Save as a <strong>Draft</strong> while you're editing, then switch to <strong>Open for signing</strong> to share the public link.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% if mode == 'edit' %}{% url 'document-detail' document.id %}{% else %}{% url 'document-index' %}{% endif %}" class="btn ghost small">← Cancel</a>
+  </div>
+</section>
+
+<form method="post" class="big-form">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field {% if field.errors %}has-error{% endif %}">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="help">{{ field.help_text|safe }}</p>{% endif %}
+      {% for err in field.errors %}<p class="error">{{ err }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+  <div class="form-actions">
+    {% if mode == 'edit' %}
+      <form action="{% url 'document-delete' document.id %}" method="post" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn ghost danger" onclick="return confirm('Delete this document and all its signatures? This cannot be undone.');">Delete document</button>
+      </form>
+    {% endif %}
+    <button type="submit" class="btn primary">{% if mode == 'create' %}Create{% else %}Save changes{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Documents · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Documents</h1>
+    <p class="muted">Signable documents — NDAs, agreements, anything you need countersigned. Share the public link; the other party types their name to sign.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'document-create' %}" class="btn primary">New document</a>
+  </div>
+</section>
+
+{% if messages %}
+  <ul class="list-plain" style="margin-bottom: var(--s-5);">
+    {% for m in messages %}
+      <li class="panel quiet" style="border-color: {% if m.tags == 'error' %}var(--danger){% else %}var(--success){% endif %};">{{ m }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if documents %}
+  <div class="card-grid">
+    {% for doc in documents %}
+      <a class="chart-card" href="{% url 'document-detail' doc.id %}">
+        <span class="chart-accent"></span>
+        <h3>{{ doc.title }}</h3>
+        <p class="chart-meta">
+          {% if doc.status == 'draft' %}
+            <span class="badge archived">Draft</span>
+          {% elif doc.status == 'open' %}
+            <span class="badge soft">Open · {{ doc.signature_count }} signed</span>
+          {% else %}
+            <span class="badge archived">Closed · {{ doc.signature_count }} signed</span>
+          {% endif %}
+          · updated {{ doc.updated_at|date:"M j, Y" }}
+        </p>
+        {% if doc.flowchart %}
+          <p class="chart-desc muted small">Linked to <strong>{{ doc.flowchart.title }}</strong></p>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h2>No documents yet</h2>
+    <p>Create your first signable document — typically an NDA you want a collaborator or lawyer to sign before you share project details with them.</p>
+    <a href="{% url 'document-create' %}" class="btn primary">New document</a>
+  </div>
+{% endif %}
+{% endblock %}
