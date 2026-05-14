@@ -21,7 +21,8 @@ from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from .forms import DocumentForm, FlowchartForm, NodeForm, SignForm, SignupForm
 from .layout import V_GAP, _size, auto_layout_flowchart
 from .models import Document, Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Signature, Tag
-from .pdf_render import render_document_pdf
+# pdf_render imports reportlab; deferred to view-call time so the rest of
+# the app boots even if reportlab isn't installed in this environment.
 
 VALID_SHAPES = {s for s, _ in NODE_SHAPES}
 
@@ -797,6 +798,18 @@ def _slug_for_pdf(title):
 
 
 def _pdf_response(document, attachment_name=None):
+    # Local import: reportlab is heavy and only needed on this code path.
+    # If it's not installed (e.g. deploy preceded the dep lock), surface a
+    # clear 503 instead of taking down the app at boot.
+    try:
+        from .pdf_render import render_document_pdf
+    except ImportError:
+        return HttpResponse(
+            'PDF generation is temporarily unavailable on this server. '
+            'Please contact the document owner.',
+            status=503,
+            content_type='text/plain',
+        )
     blob = render_document_pdf(document)
     fname = attachment_name or f'{_slug_for_pdf(document.title)}-signed.pdf'
     resp = HttpResponse(blob, content_type='application/pdf')
