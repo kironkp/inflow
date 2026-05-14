@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Import flow · InFlow{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Import a flow</h1>
+    <p class="muted">Upload a <code>.inflow.json</code> file you exported from another account. A brand new flow is created &mdash; nothing existing is overwritten.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'flowchart-index' %}" class="btn ghost small">← Back to flows</a>
+  </div>
+</section>
+
+{% if messages %}
+  <ul class="list-plain" style="margin-bottom: var(--s-5);">
+    {% for m in messages %}
+      <li class="panel quiet" style="border-color: {% if m.tags == 'error' %}var(--danger){% else %}var(--success){% endif %};">
+        {{ m }}
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="big-form">
+  {% csrf_token %}
+  <div class="field">
+    <label for="flow-file">Flow file</label>
+    <input type="file" id="flow-file" name="flow_file" accept=".json,application/json" required />
+    <p class="help">Files exported from InFlow end in <code>.inflow.json</code>. Max 20 MB.</p>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn primary">Import</button>
+  </div>
+</form>
+
+<section class="panel" style="margin-top: var(--s-6);">
+  <h2>How to get an export file</h2>
+  <ol class="muted" style="margin: 0; padding-left: var(--s-5);">
+    <li>Log into the account that owns the flow.</li>
+    <li>Open the flow you want to move.</li>
+    <li>Click <strong>Export</strong> in the header &mdash; downloads a <code>.inflow.json</code> file.</li>
+    <li>Log into the new account and come back here to upload it.</li>
+  </ol>
+</section>
+{% endblock %}

@@ -130,3 +130,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'flowchart-index'
 LOGOUT_REDIRECT_URL = 'home'
 LOGIN_URL = 'login'
+
+# Let users log in with either their username or their email address.
+# Default ModelBackend stays as fallback for management-command auth, etc.
+AUTHENTICATION_BACKENDS = [
+    'main_app.auth_backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]

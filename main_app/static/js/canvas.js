@@ -5,11 +5,29 @@
   'use strict';
 
   // ---------- Constants ----------
+  // Default size (depth-3+). Depth 0/1/2 use bigger sizes defined in CSS
+  // and reserved by layout.py — see NODE_SIZES there.
   const NODE_W = 200;
-  const NODE_H = 96;       // matches CSS min-height + padding
-  const MIN_ZOOM = 0.15;
+  const NODE_H = 96;
+  const MIN_ZOOM = 0.02;   // low enough that the full app map fits in one screen
   const MAX_ZOOM = 2.5;
-  const PADDING = 240;     // canvas extends past nodes so panning past edges feels OK
+  const PADDING = 320;     // canvas extends past nodes so panning past edges feels OK
+
+  // OneZoom pixel-size thresholds (px on screen, after canvas zoom is applied).
+  // A node's on-screen width = node.el.offsetWidth × state.zoom.
+  // Each threshold maps to a CSS attribute that fades labels in/out.
+  const PX_INVISIBLE = 8;
+  const PX_TINY      = 24;
+  const PX_SMALL     = 60;
+  const PX_MEDIUM    = 160;
+
+  function screenSizeTier(screenW) {
+    if (screenW < PX_INVISIBLE) return 'invisible';
+    if (screenW < PX_TINY)      return 'tiny';
+    if (screenW < PX_SMALL)     return 'small';
+    if (screenW < PX_MEDIUM)    return 'medium';
+    return 'readable';
+  }
 
   const cfg = window.INFLOW_CHART || {};
   const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
@@ -66,9 +84,39 @@
         y: Number(r.y) || 0,
         detail_url: r.detail_url || (cfg.nodeBaseUrl + r.id + '/'),
         el: null,
+        depth: 0,
       });
     });
   })();
+
+  // ---------- Depth from root (BFS) ----------
+  // Cached on each node so CSS data-depth attribute can drive LOD rules.
+  function recomputeDepths() {
+    state.nodes.forEach(n => { n.depth = -1; });
+    const queue = [];
+    state.nodes.forEach(n => {
+      if (n.parent_id == null) { n.depth = 0; queue.push(n); }
+    });
+    // Build children index once
+    const kids = new Map();
+    state.nodes.forEach(n => {
+      if (n.parent_id != null) {
+        if (!kids.has(n.parent_id)) kids.set(n.parent_id, []);
+        kids.get(n.parent_id).push(n);
+      }
+    });
+    while (queue.length) {
+      const n = queue.shift();
+      (kids.get(n.id) || []).forEach(c => {
+        if (c.depth === -1) {
+          c.depth = n.depth + 1;
+          queue.push(c);
+        }
+      });
+    }
+    // Any orphan (no path to a root) defaults to depth 0
+    state.nodes.forEach(n => { if (n.depth === -1) n.depth = 0; });
+  }
 
   // ---------- Coord helpers ----------
   function screenToCanvas(sx, sy) {
@@ -110,6 +158,33 @@
   function applyTransform() {
     canvas.style.transform = 'translate(' + state.pan.x + 'px, ' + state.pan.y + 'px) scale(' + state.zoom + ')';
     zoomReadout.textContent = Math.round(state.zoom * 100) + '%';
+    updateScreenSizeTiers();
+  }
+
+  // OneZoom-style per-node LOD: compute each node's on-screen width and tag
+  // it with a data-screen-size attribute. CSS rules keyed on that attribute
+  // fade labels/subtitles/shape-tags in and out smoothly. Sizes and positions
+  // never change — only opacity does.
+  function updateScreenSizeTiers() {
+    const z = state.zoom;
+    // Each child node tells its inbound edge which tier to render at.
+    const edgeTier = new Map();
+    state.nodes.forEach(n => {
+      if (!n.el) return;
+      const screenW = n.el.offsetWidth * z;
+      const tier = screenSizeTier(screenW);
+      if (n.el.dataset.screenSize !== tier) n.el.dataset.screenSize = tier;
+      edgeTier.set(n.id, tier);
+    });
+    // Update edge classes so leaf-level edges fade out at far zoom.
+    const paths = edgesSvg.querySelectorAll('.edge-line, .edge-label');
+    paths.forEach(p => {
+      const childId = parseInt(p.dataset.childId, 10);
+      const tier = edgeTier.get(childId) || 'readable';
+      // Strip any prior edge-screen-* class, then add the current one.
+      p.classList.remove('edge-screen-invisible', 'edge-screen-tiny', 'edge-screen-small', 'edge-screen-medium', 'edge-screen-readable');
+      p.classList.add('edge-screen-' + tier);
+    });
   }
 
   function buildNodeEl(n) {
@@ -117,6 +192,7 @@
     el.className = 'fc-node';
     el.dataset.nodeId = String(n.id);
     el.dataset.shape = n.shape;
+    el.dataset.depth = String(n.depth != null ? n.depth : 0);
     el.style.setProperty('--node-color', n.color);
     el.innerHTML = ''
       + '<div class="node-shape">' + escapeHtml(n.shape_display) + '</div>'
@@ -165,17 +241,22 @@
       if (!n.parent_id) return;
       const p = state.nodes.get(n.parent_id);
       if (!p) return;
-      const sx = (p.x - ox) + NODE_W / 2;
-      const sy = (p.y - oy) + NODE_H;
-      const tx = (n.x - ox) + NODE_W / 2;
+      const pW = (p.el && p.el.offsetWidth)  || NODE_W;
+      const pH = (p.el && p.el.offsetHeight) || NODE_H;
+      const nW = (n.el && n.el.offsetWidth)  || NODE_W;
+      const sx = (p.x - ox) + pW / 2;
+      const sy = (p.y - oy) + pH;
+      const tx = (n.x - ox) + nW / 2;
       const ty = (n.y - oy);
-      // Smooth cubic with vertical tangents — reads as parent-down-to-child
-      const dy = Math.max(40, (ty - sy) * 0.6);
+      const dy = Math.max(20, (ty - sy) * 0.4);
       const d = 'M ' + sx + ' ' + sy
               + ' C ' + sx + ' ' + (sy + dy) + ', '
               +       tx + ' ' + (ty - dy) + ', '
               +       tx + ' ' + ty;
       const path = document.createElementNS(SVG_NS, 'path');
+      // edge-screen-* class is set in updateScreenSizeTiers based on the
+      // child node's on-screen size — this is what fades leaf-level edges
+      // out at far zoom.
       path.setAttribute('class', 'edge-line');
       path.setAttribute('d', d);
       path.dataset.parentId = String(p.id);
@@ -183,7 +264,6 @@
       edgesSvg.appendChild(path);
 
       if (n.branch_label) {
-        // Place label slightly above the midpoint of the curve's vertical run.
         const mx = (sx + tx) / 2;
         const my = (sy + ty) / 2 - 4;
         const text = document.createElementNS(SVG_NS, 'text');
@@ -191,6 +271,7 @@
         text.setAttribute('x', mx);
         text.setAttribute('y', my);
         text.setAttribute('text-anchor', 'middle');
+        text.dataset.childId = String(n.id);
         text.textContent = n.branch_label;
         edgesSvg.appendChild(text);
       }
@@ -336,13 +417,16 @@
     if (Number.isNaN(id)) return;
 
     // Figure out which nodes are moving:
-    // - If the clicked node is in a multi-selection, move all selected.
-    // - Otherwise, move this node + its subtree (and select it).
+    // - Multi-selection → move all selected.
+    // - Root (depth 0) → move alone, so users can pull the trunk away from
+    //   its children to make breathing room.
+    // - Anything else → move this node + its subtree.
     let movingIds;
     if (state.selection.has(id) && state.selection.size > 1) {
       movingIds = Array.from(state.selection);
     } else {
-      movingIds = descendantIds(id, true);
+      const n = state.nodes.get(id);
+      movingIds = (n && n.depth === 0) ? [id] : descendantIds(id, true);
       setSelection([id]);
     }
 
@@ -480,7 +564,9 @@
         y: Number(n.y) || 0,
         detail_url: n.detail_url,
         el: null,
+        depth: 0,
       });
+      recomputeDepths();
       rebuildChildrenIndex();
       fullRender();
       closeAddPopover();
@@ -518,34 +604,35 @@
     fullRender();
   }
 
-  // ---------- Auto-layout ----------
-  async function runAutoLayout() {
-    try {
-      const resp = await fetch(cfg.autoLayoutUrl, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrf,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-      if (!resp.ok) { alert('Auto-layout failed'); return; }
-      // Easiest reliable refresh: reload the page.
-      window.location.reload();
-    } catch (err) { alert('Auto-layout failed: ' + err.message); }
-  }
-
   // ---------- Fit-to-view ----------
   function fitToView() {
     if (state.nodes.size === 0) {
       state.zoom = 1; state.pan.x = 80; state.pan.y = 80; applyTransform(); return;
     }
+    // OneZoom convention: fit to landmark levels (root + sections + sub-
+    // sections). Leaves go off-screen at this zoom and reveal as the user
+    // zooms in. This keeps sections readable at the default view.
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let used = 0;
     state.nodes.forEach(n => {
+      if ((n.depth || 0) > 2) return;
+      used++;
+      const w = (n.el && n.el.offsetWidth)  || NODE_W;
+      const h = (n.el && n.el.offsetHeight) || NODE_H;
       if (n.x < minX) minX = n.x;
       if (n.y < minY) minY = n.y;
-      if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
-      if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
+      if (n.x + w > maxX) maxX = n.x + w;
+      if (n.y + h > maxY) maxY = n.y + h;
     });
+    // Fallback to all nodes if the chart has no depth<=2 nodes.
+    if (used === 0) {
+      state.nodes.forEach(n => {
+        if (n.x < minX) minX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
+        if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
+      });
+    }
     const r = viewport.getBoundingClientRect();
     const pad = 60;
     const w = maxX - minX, h = maxY - minY;
@@ -657,13 +744,6 @@
       setFocus(!document.body.classList.contains('focus-mode'));
     });
   }
-  const autoLayoutBtn = document.getElementById('auto-layout-btn');
-  if (autoLayoutBtn) {
-    autoLayoutBtn.addEventListener('click', () => {
-      if (!confirm('Replace all node positions with the auto-layout tree? Your manual placement will be overwritten.')) return;
-      runAutoLayout();
-    });
-  }
 
   function zoomBy(f) {
     const r = viewport.getBoundingClientRect();
@@ -684,9 +764,10 @@
   });
 
   // ---------- Boot ----------
+  recomputeDepths();
   rebuildChildrenIndex();
   fullRender();
-  // Initial fit if there are nodes
   if (state.nodes.size > 0) fitToView();
   viewport.focus();
+  window.__inflow = { state, fitToView, renderAllEdges };
 })();

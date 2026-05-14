@@ -1,0 +1,26 @@
+# Secrets
+.env
+.env.local
+
+# Patent / strategy docs — kept local only
+MASTER-DOCUMENT*.txt
+MASTER-DOCUMENT*.md
+CHECKLIST.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

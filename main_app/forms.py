@@ -1,6 +1,34 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
 
 from .models import Flowchart, Node
+
+
+class SignupForm(UserCreationForm):
+    """Signup form with a required, unique email so collaborators can be
+    looked up by email later (sharing, future password-reset, etc)."""
+    email = forms.EmailField(
+        required=True,
+        label='Email',
+        help_text='Used to log in and to receive shared flows.',
+    )
+
+    class Meta(UserCreationForm.Meta):
+        fields = ('username', 'email', 'password1', 'password2')
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data['email']
+        if commit:
+            user.save()
+        return user
 
 
 class FlowchartForm(forms.ModelForm):

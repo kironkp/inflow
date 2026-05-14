@@ -26,9 +26,9 @@
 <form method="post" class="big-form" autocomplete="off">
   {% csrf_token %}
   <div class="field">
-    <label for="share-username">Username</label>
-    <input type="text" id="share-username" name="username" placeholder="exact username of the person to share with" required />
-    <p class="help">Type the exact username they signed up with. Case doesn't matter.</p>
+    <label for="share-recipient">Email or username</label>
+    <input type="text" id="share-recipient" name="recipient" placeholder="lawyer@firm.com or their username" required autocomplete="email" />
+    <p class="help">Type the email they signed up with, or their username. Case doesn't matter. They need an InFlow account already &mdash; if not, send them <a href="{% url 'signup' %}">the signup page</a>.</p>
   </div>
   <div class="field">
     <label class="check" style="display: inline-flex; align-items: center; gap: var(--s-2);">

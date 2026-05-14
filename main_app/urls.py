@@ -8,6 +8,8 @@ urlpatterns = [
 
     path('flowcharts/', views.flowchart_index, name='flowchart-index'),
     path('flowcharts/create/', views.FlowchartCreate.as_view(), name='flowchart-create'),
+    path('flowcharts/import/', views.flowchart_import, name='flowchart-import'),
+    path('flowcharts/<int:pk>/export/', views.flowchart_export, name='flowchart-export'),
     path('flowcharts/<int:pk>/', views.flowchart_detail, name='flowchart-detail'),
     path('flowcharts/<int:pk>/update/', views.FlowchartUpdate.as_view(), name='flowchart-update'),
     path('flowcharts/<int:pk>/delete/', views.FlowchartDelete.as_view(), name='flowchart-delete'),

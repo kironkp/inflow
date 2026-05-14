@@ -3,21 +3,21 @@ import json
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Max, Q
-from django.http import Http404, HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 
-from .forms import FlowchartForm, NodeForm
-from .layout import NODE_HEIGHT, NODE_WIDTH, V_GAP, auto_layout_flowchart
+from .forms import FlowchartForm, NodeForm, SignupForm
+from .layout import V_GAP, _size, auto_layout_flowchart
 from .models import Flowchart, FlowchartShare, Node, NodeLog, NODE_SHAPES, SHAPE_COLORS, Tag
 
 VALID_SHAPES = {s for s, _ in NODE_SHAPES}
@@ -126,20 +126,34 @@ def _serialize_nodes(nodes):
     ]
 
 
+def _depth_of(node):
+    """Walk parents until root; cap at depth 8 to avoid pathological loops."""
+    d, cur, guard = 0, node, 0
+    while cur and cur.parent_id and guard < 8:
+        d += 1
+        cur = cur.parent
+        guard += 1
+    return d
+
+
 def _initial_position(chart, parent):
     """Pick a sensible starting (x, y) for a freshly created node."""
     if parent is None:
         roots = Node.objects.filter(flowchart=chart, parent__isnull=True)
         max_x = roots.aggregate(m=Max('x_pos'))['m']
+        root_w, _ = _size(0)
         if max_x is None:
             return 0.0, 0.0
-        return max_x + NODE_WIDTH + 80, 0.0
+        return max_x + root_w + 80, 0.0
     siblings = Node.objects.filter(flowchart=chart, parent=parent)
-    child_y = parent.y_pos + NODE_HEIGHT + V_GAP
+    parent_depth = _depth_of(parent)
+    parent_w, parent_h = _size(parent_depth)
+    child_w, _ = _size(parent_depth + 1)
+    child_y = parent.y_pos + parent_h + V_GAP
     max_x = siblings.aggregate(m=Max('x_pos'))['m']
     if max_x is None:
         return parent.x_pos, child_y
-    return max_x + NODE_WIDTH + 36, child_y
+    return max_x + child_w + 36, child_y
 
 
 @ensure_csrf_cookie
@@ -178,7 +192,7 @@ def about(request):
 def signup(request):
     error_message = ''
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = SignupForm(request.POST)
         if form.is_valid():
             user = form.save()
             chart = Flowchart.objects.create(
@@ -210,7 +224,7 @@ def signup(request):
             login(request, user)
             return redirect('flowchart-index')
         error_message = 'Invalid sign up - try again'
-    form = UserCreationForm()
+    form = SignupForm()
     return render(request, 'registration/signup.html', {'form': form, 'error': error_message})
 
 
@@ -561,15 +575,27 @@ def flowchart_share(request, pk):
     """List + manage who a flowchart is shared with. Owner only."""
     chart = get_object_or_404(Flowchart, pk=pk, user=request.user)
     if request.method == 'POST':
-        username = (request.POST.get('username') or '').strip()
+        ident = (request.POST.get('recipient') or request.POST.get('username') or '').strip()
         can_edit = request.POST.get('can_edit') == '1'
-        if not username:
-            messages.error(request, 'Enter a username.')
-        elif username.lower() == request.user.username.lower():
+        if not ident:
+            messages.error(request, 'Enter an email address or username.')
+        elif ident.lower() == request.user.username.lower() or ident.lower() == (request.user.email or '').lower():
             messages.error(request, "You can't share with yourself.")
         else:
-            try:
-                target = User.objects.get(username__iexact=username)
+            # Email lookup if it contains '@', else username — but fall through
+            # to the other on miss so users can type whichever is handier.
+            target = None
+            if '@' in ident:
+                target = User.objects.filter(email__iexact=ident).first()
+                if target is None:
+                    target = User.objects.filter(username__iexact=ident).first()
+            else:
+                target = User.objects.filter(username__iexact=ident).first()
+                if target is None:
+                    target = User.objects.filter(email__iexact=ident).first()
+            if target is None:
+                messages.error(request, f'No account found for "{ident}".')
+            else:
                 _, created = FlowchartShare.objects.update_or_create(
                     flowchart=chart, user=target,
                     defaults={'can_edit': can_edit},
@@ -579,8 +605,6 @@ def flowchart_share(request, pk):
                     messages.success(request, f'Shared with {target.username} ({kind}).')
                 else:
                     messages.success(request, f'Updated {target.username} to {kind}.')
-            except User.DoesNotExist:
-                messages.error(request, f'No user named "{username}".')
         return redirect('flowchart-share', pk=chart.pk)
     shares = chart.shares.select_related('user').order_by('-created_at')
     return render(request, 'flowcharts/share.html', {
@@ -599,6 +623,157 @@ def flowchart_share_remove(request, pk, share_id):
         share.delete()
         messages.success(request, f'Removed {username}.')
     return redirect('flowchart-share', pk=chart.pk)
+
+
+# ---------- Import / Export ----------
+
+INFLOW_FORMAT = 'inflow.flow'
+INFLOW_VERSION = 1
+
+
+def _slugify_filename(s):
+    """Squeeze a title into a filesystem-safe slug for download filenames."""
+    keep = [c if (c.isalnum() or c in '-_') else '-' for c in (s or 'flow').strip()]
+    out = ''.join(keep).strip('-') or 'flow'
+    return out[:80]
+
+
+@login_required
+def flowchart_export(request, pk):
+    """Download a chart as JSON. Owner or any shared user can export."""
+    chart, _is_owner, _can_edit = _chart_access(request.user, pk)
+    nodes = list(chart.nodes.all().prefetch_related('tags'))
+    # Local IDs are positions in this list; parent refs use the same scheme.
+    id_to_local = {n.id: i for i, n in enumerate(nodes)}
+    payload = {
+        'format': INFLOW_FORMAT,
+        'version': INFLOW_VERSION,
+        'exported_at': timezone.now().isoformat(),
+        'chart': {
+            'title': chart.title,
+            'description': chart.description or '',
+        },
+        'nodes': [
+            {
+                'local_id': id_to_local[n.id],
+                'parent_local_id': id_to_local[n.parent_id] if n.parent_id and n.parent_id in id_to_local else None,
+                'label': n.label,
+                'subtitle': n.subtitle or '',
+                'shape': n.shape,
+                'branch_label': n.branch_label or '',
+                'description': n.description or '',
+                'x_pos': n.x_pos,
+                'y_pos': n.y_pos,
+                'color': n.color or '',
+                'sort_order': n.sort_order,
+                'tag_names': [t.name for t in n.tags.all()],
+            }
+            for n in nodes
+        ],
+    }
+    body = json.dumps(payload, indent=2, ensure_ascii=False)
+    filename = f'{_slugify_filename(chart.title)}.inflow.json'
+    resp = HttpResponse(body, content_type='application/json; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+def flowchart_import(request):
+    """Upload a .inflow.json file and create a new chart from it under the
+    current user. Never overwrites an existing chart."""
+    if request.method == 'POST':
+        upload = request.FILES.get('flow_file')
+        if not upload:
+            messages.error(request, 'Choose a .inflow.json file to upload.')
+            return redirect('flowchart-import')
+        if upload.size > 20 * 1024 * 1024:
+            messages.error(request, 'File is too large (max 20 MB).')
+            return redirect('flowchart-import')
+        try:
+            data = json.loads(upload.read().decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            messages.error(request, "Couldn't read that file as JSON.")
+            return redirect('flowchart-import')
+        if not isinstance(data, dict) or data.get('format') != INFLOW_FORMAT:
+            messages.error(request, "That doesn't look like an InFlow export.")
+            return redirect('flowchart-import')
+        version = data.get('version')
+        if not isinstance(version, int) or version > INFLOW_VERSION:
+            messages.error(request, f'Unsupported file version ({version}).')
+            return redirect('flowchart-import')
+        chart_info = data.get('chart') or {}
+        title = (chart_info.get('title') or '').strip() or 'Imported flow'
+        description = (chart_info.get('description') or '').strip()
+        node_rows = data.get('nodes')
+        if not isinstance(node_rows, list):
+            messages.error(request, 'File is missing a node list.')
+            return redirect('flowchart-import')
+
+        # Validate node rows up-front so we don't half-import.
+        seen_local = set()
+        for row in node_rows:
+            if not isinstance(row, dict):
+                messages.error(request, 'Node entries must be objects.')
+                return redirect('flowchart-import')
+            lid = row.get('local_id')
+            if not isinstance(lid, int) or lid in seen_local:
+                messages.error(request, 'Node local_ids must be unique integers.')
+                return redirect('flowchart-import')
+            seen_local.add(lid)
+        for row in node_rows:
+            pid = row.get('parent_local_id')
+            if pid is not None and pid not in seen_local:
+                messages.error(request, 'A node references a parent that isn\'t in the file.')
+                return redirect('flowchart-import')
+
+        with transaction.atomic():
+            new_chart = Flowchart.objects.create(
+                user=request.user,
+                title=title,
+                description=description,
+            )
+            # Two passes: first create all nodes without parents, then wire
+            # parents up. Keeps the FK constraint happy regardless of order.
+            local_to_node = {}
+            for row in node_rows:
+                node = Node.objects.create(
+                    flowchart=new_chart,
+                    label=(row.get('label') or '').strip() or 'Untitled',
+                    subtitle=row.get('subtitle') or '',
+                    shape=row.get('shape') or 'process',
+                    branch_label=row.get('branch_label') or '',
+                    description=row.get('description') or '',
+                    x_pos=float(row.get('x_pos') or 0),
+                    y_pos=float(row.get('y_pos') or 0),
+                    color=row.get('color') or '',
+                    sort_order=int(row.get('sort_order') or 0),
+                )
+                local_to_node[row['local_id']] = node
+                # Match tags by name (case-insensitive); create missing ones.
+                for raw_name in (row.get('tag_names') or []):
+                    name = (raw_name or '').strip()
+                    if not name:
+                        continue
+                    tag = Tag.objects.filter(name__iexact=name).first()
+                    if tag is None:
+                        tag = Tag.objects.create(name=name)
+                    node.tags.add(tag)
+            # Pass 2: parent wiring.
+            parent_updates = []
+            for row in node_rows:
+                pid = row.get('parent_local_id')
+                if pid is None:
+                    continue
+                node = local_to_node[row['local_id']]
+                node.parent = local_to_node[pid]
+                parent_updates.append(node)
+            if parent_updates:
+                Node.objects.bulk_update(parent_updates, ['parent'])
+
+        messages.success(request, f'Imported "{title}" with {len(node_rows)} nodes.')
+        return redirect('flowchart-detail', pk=new_chart.pk)
+    return render(request, 'flowcharts/import.html')
 
 
 # ---------- Tags (shared catalog) ----------

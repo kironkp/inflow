@@ -13,8 +13,11 @@
   <div class="page-header-actions">
     {% if is_owner %}
       <a href="{% url 'flowchart-share' chart.id %}" class="btn ghost small">Share</a>
+      <a href="{% url 'flowchart-export' chart.id %}" class="btn ghost small" title="Download this flow as a .inflow.json file">Export</a>
       <a href="{% url 'flowchart-update' chart.id %}" class="btn ghost small">Edit details</a>
       <a href="{% url 'flowchart-delete' chart.id %}" class="btn ghost danger small">Delete</a>
+    {% else %}
+      <a href="{% url 'flowchart-export' chart.id %}" class="btn ghost small" title="Download this flow as a .inflow.json file">Export</a>
     {% endif %}
     {% if can_edit %}
       <a href="{% url 'node-create' chart.id %}" class="btn primary small">Add node</a>
@@ -32,12 +35,6 @@
     <button type="button" class="btn ghost small" id="fit-view" title="Fit to view (F)">Fit</button>
     <button type="button" class="btn ghost small" id="focus-toggle" title="Toggle focus mode — hides page chrome">Focus</button>
   </div>
-  {% if can_edit %}
-    <span class="toolbar-sep"></span>
-    <div class="toolbar-group">
-      <button type="button" class="btn ghost small" id="auto-layout-btn" title="Retidy with auto-layout">Auto-layout</button>
-    </div>
-  {% endif %}
   <span class="toolbar-sep"></span>
   <div class="toolbar-group">
     <span class="shape-chip"><span class="shape-dot" style="background: var(--shape-start);"></span>Start / End</span>

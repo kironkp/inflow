@@ -842,11 +842,12 @@ ul[id*="tags"] li label {
 }
 
 .fc-edges .edge-line {
-  stroke: var(--border);
-  stroke-width: 1.8;
+  stroke: #9aa3ad;
+  stroke-width: 3;
   fill: none;
+  vector-effect: non-scaling-stroke;
 }
-.fc-edges .edge-line.is-selected-edge { stroke: var(--accent); stroke-width: 2.4; }
+.fc-edges .edge-line.is-selected-edge { stroke: var(--accent); stroke-width: 4; }
 
 .fc-edges .edge-label {
   fill: var(--muted);
@@ -873,7 +874,6 @@ ul[id*="tags"] li label {
   cursor: grab;
   user-select: none;
   color: var(--ink);
-  transition: box-shadow 120ms ease, transform 80ms ease, border-color 120ms ease;
 }
 .fc-node:hover { box-shadow: var(--shadow-md); }
 .fc-node.is-dragging { cursor: grabbing; box-shadow: var(--shadow-lg); z-index: 3; }
@@ -1154,3 +1154,119 @@ body.canvas-page.focus-mode .panel { display: none; }
   height: 12px;
   border-radius: 3px;
 }
+
+/* =============================================================
+   OneZoom-style LOD.
+
+   1) PRE-BAKED IMPORTANCE — node sizes are depth-keyed and stay
+      fixed at every zoom. Depth-0 (root) and depth-1 (sections)
+      are visibly large in the layout itself; depth-2 is medium;
+      depth-3+ are small leaves. The auto-layout reserves room
+      for these sizes. The camera transform alone produces the
+      "tree of life" effect: trunks visible far, leaves only near.
+
+   2) PIXEL-SIZE THRESHOLD — JS computes each node's on-screen
+      width per frame (offsetWidth × zoom) and writes a
+      data-screen-size attribute (invisible | tiny | small |
+      medium | readable). CSS uses it to fade labels and
+      subtitles in/out smoothly. No position blending. No
+      CSS-only size inflation. Positions are absolute and fixed.
+   ============================================================= */
+
+/* Depth-keyed sizes — these are baked into the auto-layout in layout.py.
+   Keep them in sync. */
+.fc-node[data-depth="0"] {
+  width: 900px;
+  min-height: 320px;
+  padding: 44px 60px;
+  border-width: 5px;
+  border-radius: 24px;
+}
+.fc-node[data-depth="0"] .node-label    { font-size: 72px; line-height: 1.05; font-weight: 800; }
+.fc-node[data-depth="0"] .node-shape    { font-size: 26px; letter-spacing: 0.14em; }
+.fc-node[data-depth="0"] .node-subtitle { font-size: 26px; }
+
+.fc-node[data-depth="1"] {
+  width: 600px;
+  min-height: 240px;
+  padding: 32px 44px;
+  border-width: 4px;
+  border-radius: 20px;
+}
+.fc-node[data-depth="1"] .node-label    { font-size: 52px; line-height: 1.06; font-weight: 700; }
+.fc-node[data-depth="1"] .node-shape    { font-size: 18px; letter-spacing: 0.12em; }
+.fc-node[data-depth="1"] .node-subtitle { font-size: 19px; }
+
+.fc-node[data-depth="2"] {
+  width: 240px;
+  min-height: 110px;
+  padding: 14px 18px;
+  border-width: 3px;
+}
+.fc-node[data-depth="2"] .node-label    { font-size: 18px; line-height: 1.22; }
+.fc-node[data-depth="2"] .node-shape    { font-size: 0.74rem; }
+.fc-node[data-depth="2"] .node-subtitle { font-size: 0.88rem; }
+
+/* depth-3+ uses the default .fc-node size (200×96, ~16px label) */
+
+/* Smooth opacity transitions when screen-size class changes */
+.fc-node .node-label,
+.fc-node .node-shape,
+.fc-node .node-subtitle,
+.fc-node .node-actions {
+  transition: opacity 200ms ease;
+}
+.fc-edges .edge-line,
+.fc-edges .edge-label {
+  transition: opacity 200ms ease;
+}
+
+/* ===== Pixel-size threshold rendering (OneZoom mechanic) =====
+   data-screen-size is set per frame by canvas.js based on
+   node.offsetWidth × state.zoom. Each threshold is what the user
+   sees on screen, in CSS px. */
+
+/* invisible (<8px on screen): hide the node entirely. The user is too zoomed
+   out for this to be useful, and skipping the render saves layout cost
+   for 400+ leaf elements. */
+.fc-node[data-screen-size="invisible"] { visibility: hidden; }
+
+/* tiny (8–24px): solid colored block — no text, no shape tag. This is the
+   leaf-dot appearance that gives the "tree of life" shape. */
+.fc-node[data-screen-size="tiny"] {
+  background: var(--node-color, var(--primary));
+  border-color: var(--node-color, var(--primary));
+}
+.fc-node[data-screen-size="tiny"] .node-label,
+.fc-node[data-screen-size="tiny"] .node-shape,
+.fc-node[data-screen-size="tiny"] .node-subtitle,
+.fc-node[data-screen-size="tiny"] .node-actions { opacity: 0; pointer-events: none; }
+
+/* small (24–60px): washed colored fill, no label yet. Subtle hint that
+   this node is something. */
+.fc-node[data-screen-size="small"] {
+  background: color-mix(in srgb, var(--node-color, var(--primary)) 22%, #fff);
+  border-color: color-mix(in srgb, var(--node-color, var(--primary)) 80%, #888);
+}
+.fc-node[data-screen-size="small"] .node-label    { opacity: 0; }
+.fc-node[data-screen-size="small"] .node-shape    { opacity: 0; }
+.fc-node[data-screen-size="small"] .node-subtitle { opacity: 0; }
+.fc-node[data-screen-size="small"] .node-actions  { opacity: 0; pointer-events: none; }
+
+/* medium (60–160px): label readable, subtitle hidden, actions hidden */
+.fc-node[data-screen-size="medium"] .node-subtitle { opacity: 0; }
+.fc-node[data-screen-size="medium"] .node-actions  { opacity: 0; pointer-events: none; }
+
+/* readable (>=160px): full detail, defaults apply */
+
+/* Edges fade with the destination node's pixel size — the edge gets a
+   tier class matching its child node so the tree skeleton stays clean
+   while leaf-level edges drop out at far zoom. */
+.fc-edges .edge-line.edge-screen-invisible,
+.fc-edges .edge-line.edge-screen-tiny     { opacity: 0; }
+.fc-edges .edge-line.edge-screen-small    { opacity: 0.45; }
+.fc-edges .edge-line.edge-screen-medium   { opacity: 0.85; }
+.fc-edges .edge-label.edge-screen-invisible,
+.fc-edges .edge-label.edge-screen-tiny,
+.fc-edges .edge-label.edge-screen-small,
+.fc-edges .edge-label.edge-screen-medium  { opacity: 0; }
