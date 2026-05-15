@@ -134,12 +134,15 @@ class NodeForm(forms.ModelForm):
 class DocumentForm(forms.ModelForm):
     class Meta:
         model = Document
-        fields = ['title', 'body', 'flowchart', 'status']
+        fields = ['title', 'body', 'disclosing_party_name', 'flowchart', 'status']
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': 'e.g. Mutual NDA — VR/AR DAW patent prep'}),
             'body': forms.Textarea(attrs={
                 'rows': 18,
                 'placeholder': 'Paste the document text here.\n\nLine breaks and blank lines are preserved.',
+            }),
+            'disclosing_party_name': forms.TextInput(attrs={
+                'placeholder': 'Your full legal name (auto-fills the signature block)',
             }),
         }
 

@@ -219,6 +219,15 @@ class Document(models.Model):
     body = models.TextField(
         help_text='The full document text. Paste your NDA / agreement here. Line breaks preserved.',
     )
+    disclosing_party_name = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text=(
+            'Your full legal name as the Disclosing Party. Auto-populates '
+            'the signature block on the generated PDF. Leave blank to use '
+            'your account email.'
+        ),
+    )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT)
     share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)

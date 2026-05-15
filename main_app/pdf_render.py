@@ -43,6 +43,12 @@ def _styles():
             fontName='Helvetica-Bold', fontSize=13, leading=18,
             spaceBefore=14, spaceAfter=8, textColor=HexColor('#1B4D5A'),
         ),
+        'sig-label': ParagraphStyle(
+            'sig-label', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=10, leading=14,
+            textColor=HexColor('#1B4D5A'),
+            spaceBefore=10, spaceAfter=4,
+        ),
         'sig-name': ParagraphStyle(
             'sig-name', parent=base['Normal'],
             fontName='Helvetica-Bold', fontSize=11, leading=15,
@@ -105,32 +111,58 @@ def render_document_pdf(document):
         html = _esc(para).replace('\n', '<br/>')
         story.append(Paragraph(html, st['body']))
 
-    # Signatures section
+    # Signatures section — auto-populated for both parties.
+    # Disclosing Party = the document owner (uses disclosing_party_name if set,
+    # else the owner's account email/username), signed when the document was
+    # created. Receiving Party = whoever signed via the public sign URL.
     signatures = list(document.signatures.all())
+    story.append(Spacer(1, 0.25 * inch))
+    story.append(HRFlowable(width='100%', thickness=0.5, color=HexColor('#D8DEE6')))
+    story.append(Paragraph('Signatures', st['section']))
+
+    # ----- Disclosing Party -----
+    disclosing_name = (document.disclosing_party_name or '').strip() \
+        or (document.owner.get_full_name() or '').strip() \
+        or document.owner.email \
+        or document.owner.username
+    disclosing_date = document.created_at.strftime('%B %-d, %Y')
+    disclosing_block = [
+        Paragraph('DISCLOSING PARTY', st['sig-label']),
+        Paragraph(_esc(disclosing_name), st['sig-name']),
+        Paragraph(_esc(disclosing_name), st['sig-cursive']),
+        Paragraph(f'Date signed: {disclosing_date}', st['sig-meta']),
+    ]
+    story.append(KeepTogether(disclosing_block))
+    story.append(Spacer(1, 0.18 * inch))
+
+    # ----- Receiving Party (one block per signer) -----
     if signatures:
-        story.append(Spacer(1, 0.25 * inch))
-        story.append(HRFlowable(width='100%', thickness=0.5, color=HexColor('#D8DEE6')))
-        story.append(Paragraph(f'Signatures ({len(signatures)})', st['section']))
-        for sig in signatures:
-            block = []
-            block.append(Paragraph(_esc(sig.signer_name), st['sig-name']))
-            block.append(Paragraph(_esc(sig.typed_signature), st['sig-cursive']))
-            meta_lines = [
-                f'Signed {sig.signed_at.strftime("%B %-d, %Y at %I:%M %p")} (UTC)',
-            ]
+        for i, sig in enumerate(signatures):
+            label = 'RECEIVING PARTY' if len(signatures) == 1 else f'RECEIVING PARTY {i + 1}'
+            meta_lines = [f'Date signed: {sig.signed_at.strftime("%B %-d, %Y at %I:%M %p")} (UTC)']
             if sig.signer_email:
                 meta_lines.append(_esc(sig.signer_email))
             if sig.ip_address:
                 meta_lines.append(f'IP {sig.ip_address}')
-            block.append(Paragraph(' &nbsp;·&nbsp; '.join(meta_lines), st['sig-meta']))
-            # Keep each signer's block on the same page where possible
+            block = [
+                Paragraph(label, st['sig-label']),
+                Paragraph(_esc(sig.signer_name), st['sig-name']),
+                Paragraph(_esc(sig.typed_signature), st['sig-cursive']),
+                Paragraph(' &nbsp;·&nbsp; '.join(meta_lines), st['sig-meta']),
+            ]
             story.append(KeepTogether(block))
+            if i < len(signatures) - 1:
+                story.append(Spacer(1, 0.12 * inch))
     else:
-        story.append(Spacer(1, 0.25 * inch))
-        story.append(Paragraph(
-            '<i>No signatures on file yet.</i>',
-            st['meta'],
-        ))
+        block = [
+            Paragraph('RECEIVING PARTY', st['sig-label']),
+            Paragraph(
+                '<i>Not yet signed. This document will be countersigned by the '
+                'Receiving Party via the InFlow signing link.</i>',
+                st['sig-meta'],
+            ),
+        ]
+        story.append(KeepTogether(block))
 
     doc.build(story)
     return buf.getvalue()
