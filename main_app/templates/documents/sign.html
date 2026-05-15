@@ -8,7 +8,7 @@
   <p class="muted">{{ document.owner.username }} is asking you to read and sign this document.</p>
 
   <section class="panel sign-document-body">
-    {{ document.body|linebreaks }}
+    {{ document.composed_body|linebreaks }}
   </section>
   <p class="muted small" style="text-align: right; margin-top: calc(-1 * var(--s-3));">
     <a href="{{ download_url }}">Download as PDF</a> for your records.

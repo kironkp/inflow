@@ -217,15 +217,19 @@ class Document(models.Model):
     )
     title = models.CharField(max_length=160)
     body = models.TextField(
-        help_text='The full document text. Paste your NDA / agreement here. Line breaks preserved.',
+        help_text=(
+            'The numbered clauses of the agreement. The Effective Date, '
+            'Parties block, and Signatures section are generated '
+            'automatically — don\'t paste those in.'
+        ),
     )
     disclosing_party_name = models.CharField(
         max_length=160,
         blank=True,
         help_text=(
-            'Your full legal name as the Disclosing Party. Auto-populates '
-            'the signature block on the generated PDF. Leave blank to use '
-            'your account email.'
+            'Your full legal name as the Disclosing Party. Populates the '
+            'Parties preamble and the signature block on the generated PDF. '
+            'Leave blank to use your account email.'
         ),
     )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT)
@@ -249,6 +253,48 @@ class Document(models.Model):
     @property
     def signature_count(self):
         return self.signatures.count()
+
+    @property
+    def effective_date_str(self):
+        return self.created_at.strftime('%B %-d, %Y')
+
+    @property
+    def disclosing_display_name(self):
+        return (self.disclosing_party_name or '').strip() \
+            or (self.owner.get_full_name() or '').strip() \
+            or self.owner.email \
+            or self.owner.username
+
+    @property
+    def receiving_display_name(self):
+        sig = self.signatures.first()
+        return (sig.signer_name or '').strip() if sig else ''
+
+    def composed_body(self, receiving_name=None):
+        """Body text with an auto-generated Effective Date + Parties preamble.
+
+        The stored body covers only the numbered clauses; the parties block is
+        derived from the document owner's disclosing name and the receiving
+        party's typed legal name (passed in for the live sign-page preview,
+        otherwise pulled from the first recorded signature).
+        """
+        receiving = (receiving_name or '').strip() or self.receiving_display_name \
+            or '_______________________________'
+        preamble = (
+            f'EFFECTIVE DATE: {self.effective_date_str}\n'
+            f'\n'
+            f'\n'
+            f'PARTIES:\n'
+            f'\n'
+            f'  Disclosing Party: {self.disclosing_display_name}\n'
+            f'    (hereinafter, the "Disclosing Party")\n'
+            f'\n'
+            f'  Receiving Party: {receiving}\n'
+            f'    (hereinafter, the "Receiving Party")\n'
+            f'\n'
+            f'  (Collectively, the "Parties.")'
+        )
+        return f'{preamble}\n\n\n{self.body}'
 
 
 class Signature(models.Model):

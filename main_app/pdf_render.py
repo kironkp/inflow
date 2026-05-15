@@ -4,11 +4,14 @@ Pure-Python via ReportLab — no native deps, no Heroku buildpacks needed.
 Renders the document body + every signature into a clean letter-size PDF.
 """
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib.colors import HexColor, grey
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
@@ -16,6 +19,28 @@ from reportlab.platypus import (
     HRFlowable,
     KeepTogether,
 )
+
+
+_CURSIVE_FONT_NAME = 'DancingScript'
+_CURSIVE_FONT_PATH = Path(__file__).resolve().parent / 'fonts' / 'DancingScript.ttf'
+_cursive_registered = False
+
+
+def _cursive_font():
+    """Register the Dancing Script TTF once and return its registered name.
+
+    Falls back to Helvetica-Oblique if the TTF is missing on disk (e.g. a
+    deploy that didn't pick up the fonts directory) so PDF generation never
+    breaks just because the cursive face is unavailable.
+    """
+    global _cursive_registered
+    if _cursive_registered:
+        return _CURSIVE_FONT_NAME
+    if not _CURSIVE_FONT_PATH.exists():
+        return 'Helvetica-Oblique'
+    pdfmetrics.registerFont(TTFont(_CURSIVE_FONT_NAME, str(_CURSIVE_FONT_PATH)))
+    _cursive_registered = True
+    return _CURSIVE_FONT_NAME
 
 
 def _styles():
@@ -56,7 +81,7 @@ def _styles():
         ),
         'sig-cursive': ParagraphStyle(
             'sig-cursive', parent=base['Normal'],
-            fontName='Helvetica-Oblique', fontSize=22, leading=28,
+            fontName=_cursive_font(), fontSize=30, leading=34,
             textColor=HexColor('#1B3550'),
             spaceBefore=4, spaceAfter=4,
         ),
@@ -102,8 +127,10 @@ def render_document_pdf(document):
     story.append(HRFlowable(width='100%', thickness=0.5, color=HexColor('#D8DEE6')))
     story.append(Spacer(1, 0.18 * inch))
 
-    # Body — split on blank lines so each paragraph is its own flowable
-    raw_paragraphs = [p.strip() for p in document.body.split('\n\n')]
+    # Body — split on blank lines so each paragraph is its own flowable.
+    # composed_body prepends the auto-generated Effective Date + Parties block
+    # using the first signer's name (if any) for the Receiving Party slot.
+    raw_paragraphs = [p.strip() for p in document.composed_body().split('\n\n')]
     for para in raw_paragraphs:
         if not para:
             continue

@@ -134,15 +134,20 @@ class NodeForm(forms.ModelForm):
 class DocumentForm(forms.ModelForm):
     class Meta:
         model = Document
-        fields = ['title', 'body', 'disclosing_party_name', 'flowchart', 'status']
+        fields = ['title', 'disclosing_party_name', 'body', 'flowchart', 'status']
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': 'e.g. Mutual NDA — VR/AR DAW patent prep'}),
             'body': forms.Textarea(attrs={
                 'rows': 18,
-                'placeholder': 'Paste the document text here.\n\nLine breaks and blank lines are preserved.',
+                'placeholder': (
+                    'Paste the body of the agreement here (the numbered '
+                    'clauses).\n\nInFlow auto-generates the Effective Date, '
+                    'Parties block, and Signatures section from your inputs '
+                    'and the signer\'s typed name — don\'t paste those in.'
+                ),
             }),
             'disclosing_party_name': forms.TextInput(attrs={
-                'placeholder': 'Your full legal name (auto-fills the signature block)',
+                'placeholder': 'Your full legal name (e.g. Jane Q. Inventor)',
             }),
         }
 
